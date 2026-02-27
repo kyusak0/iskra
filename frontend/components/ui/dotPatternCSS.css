@@ -1,0 +1,47 @@
+.dot-pattern {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    --mx: 50%;
+    --my: 50%;
+    --mr: 180px;
+  
+    background-image: radial-gradient(circle, rgba(255,255,255,0.25) 2px, transparent 2px);
+    background-size: 15px 15px;
+  
+    -webkit-mask-image: radial-gradient(circle var(--mr) at var(--mx) var(--my), rgba(0,0,0,1) 0%, rgba(0,0,0,0) 70%);
+    mask-image: radial-gradient(circle var(--mr) at var(--mx) var(--my), rgba(0,0,0,1) 0%, rgba(0,0,0,0) 70%);
+  
+    /* плавный переход радиуса */
+    transition: -webkit-mask-position 0.08s linear, mask-position 0.08s linear, --mr 0.3s ease;
+  
+    /* более выраженная пульсация */
+    animation: pulse 3s infinite alternate ease-in-out;
+  }
+  
+  @keyframes pulse {
+    0% {
+      background-size: 12px 12px;
+      opacity: 0.15;
+    }
+    25% {
+      background-size: 20px 20px;
+      opacity: 0.35;
+    }
+    50% {
+      background-size: 10px 10px;
+      opacity: 0.25;
+    }
+    75% {
+      background-size: 100px 100px;
+      opacity: 0.45;
+    }
+    100% {
+      background-size: 17px 17px;
+      opacity: 0.3;
+    }
+  }
+  
+  @media (max-width: 600px) {
+    .dot-pattern { background-size: 24px 24px; --mr: 100px; }}
