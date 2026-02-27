@@ -289,8 +289,12 @@ export default function Chat({ chat_id }) {
                     <Link href="/chats">
                         Back
                     </Link>
-
                 </div>
+
+                <p>WebSocket: {isConnected ? 'Connected' : 'Disconnected'}</p>
+                <p>User ID: {user?.id}</p>
+                <p>Chat ID: {chatId}</p>
+                <p>Messages' count: {messages.length}</p>
             </div>
 
             <div className="messages m-auto h-110 mb-4 max-h-180 overflow-y-auto p-2 w-full">
