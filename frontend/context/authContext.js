@@ -76,9 +76,13 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const post = async (link, data ) => {
+    const post = async (link, data) => {
         try {
-            const response = await axios.post(link, data);
+            const response = await axios.post(link, data, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
             console.log(response)
             return response.data;
         } catch (error) {

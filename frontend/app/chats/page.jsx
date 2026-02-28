@@ -1,10 +1,7 @@
 'use client'
 
 import MainLayout from "../../layouts/MainLayout"
-import { MouseEvent } from 'react';
-
 import { useState, useEffect } from "react";
-
 import Link from "next/link";
 
 import ChatWindow from './[cid]/page';
@@ -12,7 +9,7 @@ import ContextMenu from "../../components/contextMenu/ContextMenu";
 import Popup from "../../components/popup/Popup";
 import { useAuth } from "../../context/authContext";
 
-
+const BASE_URL = 'http://localhost:8001/storage/';
 
 export default function Friends() {
 
@@ -32,13 +29,31 @@ export default function Friends() {
         setIsSelectedChat(true)
     }
 
+    const [file, setFile] = useState(null);
+
     const createChat = async (e) => {
         e.preventDefault()
-        const newData = { ...creatingData, owner_id: user.id }
-        console.log(newData)
-        const res = await post("/create-chat", newData);
+        try {
+            const formData = {
+                file: file,
+                author_id: user.id
+            }
 
-        console.log(res)
+            const loadFile = await post('/load-file', formData);
+
+            const newData = { ...creatingData, owner_id: user.id, avatar: loadFile.data.name }
+            console.log(newData);
+            const res = await post("/create-chat", newData);
+
+            setChats([...prev, {
+                id: res.data.id,
+                title: res.data.title,
+                source: loadFile.data.name,
+            }])
+        } catch (error) {
+
+        }
+
     }
 
     const [chats, setChats] = useState([]);
@@ -54,6 +69,7 @@ export default function Friends() {
             const newRecord = {
                 id: element.id,
                 title: element.title,
+                source: element.avatar,
                 lastMess: element.messages[element.messages.length - 1]?.content,
                 lastMessTime: new Date(element.messages[element.messages.length - 1]?.created_at).toLocaleString()
             }
@@ -103,6 +119,19 @@ export default function Friends() {
                                 Создание Чата
                             </h3>
                             <form className="w-3/4 flex flex-col gap-5" onSubmit={createChat}>
+                                <input type="file" name="source" id="source" className="hidden"
+                                    onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                            setFile(e.target.files[0])
+                                        }
+                                    }}
+                                />
+                                <div className="flex gap-5">
+                                    <label htmlFor="source"
+                                        className="underline text-main"
+                                    >Загрузить аватар</label>
+                                    {file?.name}
+                                </div>
                                 <input type="text"
                                     name="title"
                                     className="px-3 py-2 border-2 border-main rounded-md"
@@ -154,17 +183,25 @@ export default function Friends() {
                                             ? 'bg-blue-100 border border-blue-300'
                                             : 'hover:bg-gray-100'
                                             }`}>
+                                        {chat.source ? (
+                                            <img src={`${BASE_URL}${chat.source}`} alt="" className="w-10 h-10 rounded-full" />
+                                        ) : (
+                                            <div
+                                                className="w-10 h-10 rounded-full flex justify-center items-center bg-main text-bg uppercase font-bold"
+                                            > {chat.title[0]} </div>
+                                        )}
                                         <div className="flex-1">
-                                            <p className="flex justify-between items-center w-full"><span>{chat.title}</span> <span className="text-xs">{chat.lastMessTime}</span></p>
+                                            <p className="flex justify-between items-center w-full">
+                                                <span>{chat.title}</span> <span className="text-xs">{chat.lastMessTime}</span></p>
                                             <p className="text-xs italic">
                                                 {chat.lastMess ? (chat.lastMess) : 'Чат пуст'}
                                             </p>
                                         </div>
 
-                                        <ContextMenu 
-                                        openTrigger={
-                                            <button>...</button>
-                                        }>
+                                        <ContextMenu
+                                            openTrigger={
+                                                <button>...</button>
+                                            }>
                                             <h3>{chat.title}</h3>
                                             <button>edit</button>
                                             <button>delete</button>
@@ -207,6 +244,6 @@ export default function Friends() {
                     </span>
                 </div>
             </div>
-        </MainLayout>
+        </MainLayout >
     )
 }

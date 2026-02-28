@@ -8,7 +8,7 @@ import { useAuth } from '../../../context/authContext';
 import ContextMenu from '../../../components/contextMenu/ContextMenu';
 import Popup from '../../../components/popup/Popup';
 
-
+const BASE_URL = 'http://localhost:8001/storage/';
 
 
 export default function Chat({ chat_id }) {
@@ -25,7 +25,8 @@ export default function Chat({ chat_id }) {
     const wsRef = useRef(null);
     const messagesEndRef = useRef(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [answer, setAnswer] = useState()
+    const [answer, setAnswer] = useState();
+    const [file, setFile] = useState(null);
 
     const lastMessageCount = useRef(0);
 
@@ -47,6 +48,8 @@ export default function Chat({ chat_id }) {
                     source: null,
                     content: element.content,
                     created_at: new Date(element.created_at).toLocaleTimeString(),
+
+                    source: element.source?.name,
 
                     answer_content: element?.message?.content,
                     answer_id: element?.message?.id,
@@ -141,7 +144,17 @@ export default function Chat({ chat_id }) {
     const handleSend = async (e) => {
         e.preventDefault();
 
-        if (!content.trim() || !isConnected) return;
+        let loadFile = null
+        if (file) {
+            const formData = {
+                file: file,
+                author_id: user.id
+            }
+
+            loadFile = await post('/load-file', formData);
+        }
+
+        if (!isConnected) return;
 
         const messageContent = content;
         const tempId = Date.now();
@@ -151,6 +164,7 @@ export default function Chat({ chat_id }) {
             author_id: user.id,
             author_name: user.name || `User ${user.id}`,
             content: messageContent,
+            source: loadFile.data.name,
             created_at: new Date().toLocaleTimeString(),
             isSending: true
         };
@@ -158,6 +172,7 @@ export default function Chat({ chat_id }) {
         setMessages(prev => [...prev, optimisticMessage]);
         setContent("");
         setAnswer(null)
+        setFile(null)
 
         setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -168,7 +183,8 @@ export default function Chat({ chat_id }) {
                 author_id: user.id,
                 chat_id: chatId,
                 content: messageContent,
-                answer_id: answer?.id || null
+                answer_id: answer?.id || null,
+                source_id: loadFile?.data.id,
             };
 
             const res = await post("/send-message/chat", newData);
@@ -186,7 +202,8 @@ export default function Chat({ chat_id }) {
                             created_at: new Date(res.data.created_at).toLocaleTimeString(),
                             isSending: false,
                             answer_id: res.data.answer_id,
-                            answer_content: res.data.message.content
+                            answer_content: res.data.message.content,
+                            source: loadFile.data.name,
                         }
                         : msg
                 )
@@ -203,7 +220,8 @@ export default function Chat({ chat_id }) {
                         chat_id: res.data.chat_id,
                         created_at: res.data.created_at,
                         answer_id: res.data.answer_id,
-                        answer_content: res.data.message.content
+                        answer_content: res.data.message.content,
+                        source: loadFile.data.name,
                     }
                 };
                 wsRef.current.send(JSON.stringify(messageData));
@@ -329,14 +347,18 @@ export default function Chat({ chat_id }) {
                                                         setCloseContext(true);
                                                     }}
                                                     className={`w-full block border-l-2 rounded-l-md p-2 mb-2 ${message.author_id === user?.id
-                                                            ? 'bg-main/20 border-main'
-                                                            : 'bg-gray-200 border-gray-500'
+                                                        ? 'bg-main/20 border-main'
+                                                        : 'bg-gray-200 border-gray-500'
                                                         }`}
                                                 >
                                                     {message.answer_content}
                                                 </a>
                                             </div>
                                         ) : null}
+
+                                        {message.source ? (
+                                            <img src={`${BASE_URL}${message.source}`} alt="" className="m-auto w-full h-80" />
+                                        ) : (null)}
 
                                         <p className="text-gray-800 mt-1">{message.content}</p>
                                         <p className="text-xs text-gray-500 flex justify-end  right-0">
@@ -384,32 +406,61 @@ export default function Chat({ chat_id }) {
 
 
             </div >
-            {
-                answer ? (
-                    <div className="w-full flex justify-between" >
-                        <a href={`#mess${answer?.id}`}>{answer?.content}</a>
-                        <button onClick={() => { setAnswer(null) }}>❌</button>
-                    </div>
-                ) : (null)}
+            <form onSubmit={(e) => handleSend(e, post.id)}
+                className='w-full flex flex-col gap-2 mt-10'>
+                {user ? (
+                    <>
+                        {answer ? (
+                            <div className="flex justify-between">
+                                <a href={`#${answer?.id}`}>{answer?.content}</a>
+                                <button onClick={() => { setAnswer(null) }}>❌</button>
+                            </div>
+                        ) : (null)}
 
+                        {file ? (
+                            <div className="flex justify-between">
+                                {file?.name}
+                                <button onClick={() => { setFile(null) }}>❌</button>
+                            </div>
+                        ) : (null)}
 
+                        <div className="flex w-full justify-start gap-10 items-center">
+                            <input
+                                type="text"
+                                value={content}
+                                name="content"
+                                onChange={(e) => setContent(e.target.value)}
+                                className='w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:border-main'
+                                placeholder="Комментировать..."
+                            />
 
-            <form onSubmit={handleSend} className='flex gap-2 items-center w-full'>
-                <input
-                    type="text"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className='p-3 border border-gray-300  rounded-md flex-1 focus:outline-none focus:border-main'
-                    placeholder="Введите Ваше сообщение..."
-                    disabled={!isConnected}
-                />
-                <button
-                    type="submit"
-                    className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
-                    disabled={!isConnected || !content.trim()}
-                >
-                    ➤
-                </button>
+                            <input type="file" name="source_com" id="source_com" className="hidden"
+                                onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                        setFile(e.target.files[0])
+                                    }
+                                }}
+                            />
+                            <label htmlFor="source_com" className="text-4xl rotate-45">📎</label>
+
+                            <button
+                                type="submit"
+                                className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
+                                disabled={!(content.trim() || file)}
+                            >
+                                ➤
+                            </button></div>
+                    </>
+                ) : (
+                    <p className="text-xl text-center">
+                        Для того чтобы оставить Комментарий, нужно войти в аккаунт
+                        <br />
+                        <a href="/login" className="text-main">
+                            Войти
+                        </a>
+                    </p>
+
+                )}
             </form>
         </div >
     );

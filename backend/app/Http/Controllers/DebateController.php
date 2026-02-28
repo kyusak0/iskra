@@ -26,7 +26,8 @@ class DebateController extends Controller
         $chat = Chat::create([
             'title' => $request->title,
             'bio' => $request->bio,
-            'owner_id' => $request->owner_id
+            'owner_id' => $request->owner_id,
+            'avatar' => $request->avatar
         ]);
 
         $chat->members()->create([
@@ -53,12 +54,14 @@ class DebateController extends Controller
         $data = Post::find($request->post_id);
         $mess = $data->messages()->create(['content' => $request->content, 
         'author_id' => $request->author_id, 'type' => 'comment', 
-        'answer_id' => $request->answer_id]);
+        'answer_id' => $request->answer_id,
+        'source_id' => $request->source_id]);
     }else{
         $data = Chat::find($request->chat_id);
         $mess = $data->messages()->create(['content' => $request->content, 
         'author_id' => $request->author_id, 'type' => 'chat',
-        'answer_id' => $request->answer_id]);
+        'answer_id' => $request->answer_id,
+        'source_id' => $request->source_id]);
     }
 
         
@@ -84,12 +87,12 @@ class DebateController extends Controller
         if(str_contains($url, 'post')){
             $messages = Message::where('messageable_id', $id)
                             ->where('messageable_type', 'App\Models\Post')
-                            ->with(['user', 'message', 'message.user'])
+                            ->with(['user', 'message', 'message.user','source'])
                             ->get();
         } else if(str_contains($url, 'chat')){
             $messages = Message::where('messageable_id', $id)
                             ->where('messageable_type', 'App\Models\Chat')
-                            ->with(['user', 'message', 'message.user'])
+                            ->with(['user', 'message', 'message.user','source'])
                             ->get();
         }
 
