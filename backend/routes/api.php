@@ -21,6 +21,7 @@ Route::get('/user-info/{id}', [AuthController::class, 'userInfo']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+    Route::post('/set-avatar', [AuthController::class, 'setAvatar']);
 
     Route::post('/create-post', [PostController::class, 'createPost']);
 

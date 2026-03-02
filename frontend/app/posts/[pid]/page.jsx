@@ -140,7 +140,7 @@ export default function ProfilePage() {
                             postData.source?.type.includes('image') ? (
                                 <img src={`${BASE_URL + postData.source.name}`} alt="" className="m-auto w-2/4" />
                             ) : (
-                                <p className=" h-100">Для этого файлы предпросмотр недоступен</p>
+                                <p className=" h-100">Для этого файла предпросмотр недоступен</p>
                             )
                         ) : (null)}
                         <h3 className="text-3xl">
