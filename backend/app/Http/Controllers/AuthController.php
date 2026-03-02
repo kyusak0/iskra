@@ -47,13 +47,30 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $request->email)->firstOrFail();
-        $token = $user->createToken('auth_token')->plainTextToken;
+        if ($user->google2fa_enabled) {
+            // по желанию: удалить старые временные 2FA-токены
+            $user->tokens()
+                ->where('name', '2fa-login')
+                ->delete();
+
+            $loginToken = $user->createToken('2fa-login', ['2fa:verify'])->plainTextToken;
+
+            return response()->json([
+                'requires_2fa' => true,
+                'login_token' => $loginToken,
+            ]);
+        }
+
+        // Обычный вход без 2FA
+        $token = $user->createToken('auth_token', ['*'])->plainTextToken;
 
         return response()->json([
-            'user' => $user,
+            'requires_2fa' => false,
             'token' => $token,
-            'message' => 'Login successful'
+            'user' => $user,
         ]);
+
+
     }
 
     public function logout(Request $request)

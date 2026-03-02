@@ -16,14 +16,14 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
+/* @media (prefers-color-scheme: dark) {
   :root {
     --background: #212121;
     --foreground: #0095ff;
     --main: #40ffec;
     --secondary: #181818;
   }
-}
+} */
 
 * {
   scroll-behavior: smooth;

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\TwoFactorController as ApiTwoFactorController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -7,6 +8,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\DebateController;
 use App\Http\Controllers\SourceController;
+use App\Http\Controllers\TwoFactorController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -37,3 +39,17 @@ Route::middleware('auth:sanctum')->group(function () {
     
 
 });
+Route::post('/2fa/verify-login', [TwoFactorController::class, 'verifyLoginCode'])
+    ->middleware(['auth:sanctum', 'abilities:2fa:verify']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/2fa/setup', [TwoFactorController::class, 'setup']);
+    Route::post('/2fa/confirm', [TwoFactorController::class, 'confirm']);
+    Route::post('/2fa/disable', [TwoFactorController::class, 'disable']);
+    // Route::post('/2fa/verify-login', [TwoFactorController::class, 'verifyLoginCode']);
+});
+
+// Route::middleware(['auth:sanctum', '2fa.verified'])->group(function () {
+//     Route::get('/user', fn (Request $request) => $request->user());
+//     // все остальные защищённые роуты
+// });
