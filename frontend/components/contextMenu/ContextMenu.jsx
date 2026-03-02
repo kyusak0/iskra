@@ -12,6 +12,7 @@ export default function ContextMenu({
     });
 
     const openContextMenu = (event) => {
+        event.preventDefault();
         setContext({
             visible: true,
             x: event.clientX - 150,
@@ -33,7 +34,13 @@ export default function ContextMenu({
     return (
         <>
 
-            <div
+            <div className="max-lg:hidden"
+                onContextMenu={openContextMenu}
+            >
+                {openTrigger}
+            </div>
+
+            <div className="lg:hidden"
                 onClick={openContextMenu}
             >
                 {openTrigger}
@@ -49,7 +56,7 @@ export default function ContextMenu({
                     >
                     </div>
                     <div
-                        className="absolute bg-white  border-2 rounded-md border-main"
+                        className="absolute bg-white border-2 rounded-md border-main"
                         style={{
                             left: `${context.x}px`,
                             top: `${context.y}px`,

@@ -12,8 +12,8 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/get-posts', [PostController::class, 'getPosts']);
-Route::get('/get-chats', [DebateController::class, 'getChats']);
-Route::post('/get-messages/chat/{id}', [DebateController::class, 'getMessages']);
+Route::get('/get-post/{id}', [PostController::class, 'getPostInfo']);
+
 Route::post('/get-messages/post/{id}', [DebateController::class, 'getMessages']);
 
 Route::get('/user-info/{id}', [AuthController::class, 'userInfo']);
@@ -30,4 +30,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/send-message/post', [DebateController::class, 'sendMessage']);
     Route::post('/send-message/chat', [DebateController::class, 'sendMessage']);
     Route::post('/delete-message', [DebateController::class, 'deleteMessage']);
+    Route::get('/get-chats', [DebateController::class, 'getChats']);
+    Route::get('/get-chat-info/{id}', [DebateController::class, 'getChatInfo']);
+    Route::post('/get-messages/chat/{id}', [DebateController::class, 'getMessages']);
+    
+
 });

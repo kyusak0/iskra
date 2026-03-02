@@ -71,12 +71,17 @@ class AuthController extends Controller
     }
 
     public function userInfo($id){
-        $user = User::findOrFail($id)->with([
-            'sources', 'posts', 'messages', 'owner'
-        ])->get();
-
-        return response()->json([
+        $user = User::with([
+            'posts', 'posts.source'
+        ])->findOrFail($id);
+        if($user){
+            return response()->json([
             'data' => $user,
+            'success' => true,
+        ]);
+        }
+        return response()->json([
+            'success' => false,
         ]);
     }
 }

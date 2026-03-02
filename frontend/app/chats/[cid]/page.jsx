@@ -65,6 +65,23 @@ export default function Chat({ chat_id }) {
         }
     }, [chatId, post]);
 
+    const [chatInfo, setChatInfo] = useState()
+
+    const getChatInfo = async (chat_id) => {
+        const res = await get(`/get-chat-info/${chat_id}`);
+        console.log(res)
+
+        setChatInfo({
+            id: res.data.id,
+            title: res.data.title,
+            source: res.data.avatar,
+            type: res.data.type,
+            created_at: new Date(res.data.created_at).toLocaleString(),
+            member_length: res.data.members.length,
+            members: res.data.members,
+        })
+    }
+
     useEffect(() => {
         wsRef.current = new WebSocket('ws://localhost:5000');
 
@@ -128,7 +145,11 @@ export default function Chat({ chat_id }) {
                 user_id: user.id,
                 chat_id: chatId
             }));
+
+            getChatInfo(chatId)
         }
+
+
     }, [isConnected, user, chatId]);
 
     useEffect(() => {
@@ -164,7 +185,7 @@ export default function Chat({ chat_id }) {
             author_id: user.id,
             author_name: user.name || `User ${user.id}`,
             content: messageContent,
-            source: loadFile.data.name,
+            source: loadFile?.data.name,
             created_at: new Date().toLocaleTimeString(),
             isSending: true
         };
@@ -198,12 +219,12 @@ export default function Chat({ chat_id }) {
                             id: res.data.id,
                             author_id: res.data.author_id,
                             author_name: user.name || `User ${user.id}`,
-                            content: res.data.content,
+                            content: res.data?.content,
                             created_at: new Date(res.data.created_at).toLocaleTimeString(),
                             isSending: false,
-                            answer_id: res.data.answer_id,
-                            answer_content: res.data.message.content,
-                            source: loadFile.data.name,
+                            answer_id: res.data?.answer_id,
+                            answer_content: res.data.message?.content,
+                            source: loadFile?.data.name,
                         }
                         : msg
                 )
@@ -285,34 +306,46 @@ export default function Chat({ chat_id }) {
     const [selectedMess, setSelectedMess] = useState(0)
 
     useEffect(() => {
-        setTimeout(() => {
-            if (window.location.hash) {
+        if (isConnected && window.location.hash) {
+            setTimeout(() => {
+
                 history.replaceState(null, null, window.location.pathname + window.location.search);
                 setSelectedMess(0)
-            }
-        }, 2000)
-        const str = window.location.hash
-        setSelectedMess(str.split('#')[1])
+
+            }, 2000)
+            const str = window.location.hash
+            setSelectedMess(str.split('#')[1])
+        }
     }, [window?.location.hash])
 
     return (
-        <div className="">
-            <div className={`p-2 flex justify-evenly mb-4 text-white ${isConnected ? 'bg-green-600' : 'bg-red-600'}`}>
-                <div className="max-lg:hidden">
+        <div className="w-full">
+            <div className={`p-2 flex items-center mb-4 border-b-2 border-main`}>
+                <div className="max-lg:hidden px-5">
                     <button onClick={() => { setChatId('0') }}>
-                        Back
+                        ⬅
                     </button>
                 </div>
-                <div className="lg:hidden">
+                <div className="lg:hidden px-5">
                     <Link href="/chats">
-                        Back
+                        ⬅
                     </Link>
                 </div>
+                <div className="flex gap-5 items-center">{
+                    chatInfo?.source ? (
+                        <img src={`${BASE_URL + chatInfo?.source}`} alt="" className='w-10 h-10 rounded-full' />
+                    ) : (
+                        <div className="w-10 h-10 rounded-full bg-main flex items-center justify-center font-bold uppercase text-bg"
+                        >{chatInfo?.title[0]}</div>
+                    )
+                }
+                    <p>
+                        {chatInfo?.title}
+                    </p></div>
 
-                <p>WebSocket: {isConnected ? 'Connected' : 'Disconnected'}</p>
-                <p>User ID: {user?.id}</p>
-                <p>Chat ID: {chatId}</p>
-                <p>Messages' count: {messages.length}</p>
+
+
+
             </div>
 
             <div className="messages m-auto h-110 mb-4 max-h-180 overflow-y-auto p-2 w-full">
@@ -320,7 +353,7 @@ export default function Chat({ chat_id }) {
                     <p className="text-gray-500 text-center p-4" onClick={() => { setContent('Здравствуйте') }}>Чат пуст! <br /> Поздороваться</p>
                 ) : (
                     messages.map(message => (
-                        <div className={`p-3 mb-2 rounded-md w-max
+                        <div className={`w-full p-3 mb-2 rounded-md w-max
                             ${selectedMess == message.id ? 'shadow-lg shadow-main/50' : ''}
                             ${message.author_id === user?.id
                                 ? 'bg-main/10 ml-auto'
@@ -357,7 +390,7 @@ export default function Chat({ chat_id }) {
                                         ) : null}
 
                                         {message.source ? (
-                                            <img src={`${BASE_URL}${message.source}`} alt="" className="m-auto w-full h-80" />
+                                            <img src={`${BASE_URL}${message.source}`} alt="" className="m-auto w-full max-lg:h-40 h-80" />
                                         ) : (null)}
 
                                         <p className="text-gray-800 mt-1">{message.content}</p>
@@ -449,7 +482,8 @@ export default function Chat({ chat_id }) {
                                 disabled={!(content.trim() || file)}
                             >
                                 ➤
-                            </button></div>
+                            </button>
+                        </div>
                     </>
                 ) : (
                     <p className="text-xl text-center">

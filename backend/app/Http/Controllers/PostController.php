@@ -39,4 +39,13 @@ class PostController extends Controller
             'data' => $posts,
         ]);
     }
+
+    public function getPostInfo($id){
+        $post = Post::with(['user', 'source', 'messages', 'messages.source', 'messages.user', 'messages.message'])->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $post,
+        ]);
+    }
 }

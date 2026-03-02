@@ -8,6 +8,7 @@ import ChatWindow from './[cid]/page';
 import ContextMenu from "../../components/contextMenu/ContextMenu";
 import Popup from "../../components/popup/Popup";
 import { useAuth } from "../../context/authContext";
+import { useRouter } from "next/navigation";
 
 const BASE_URL = 'http://localhost:8001/storage/';
 
@@ -19,13 +20,19 @@ export default function Friends() {
 
     const [creatingData, setCreatingData] = useState();
 
-    const { user, post, get } = useAuth();
+    const { user,loading, post, get } = useAuth();
 
-    const chatSelect = (id) => {
-        if (!id) {
+    const router = useRouter();
+
+    if(!user && !loading){
+        router.push('/unauth');
+    }
+
+    const chatSelect = (chat) => {
+        if (!chat.id) {
             return;
         }
-        setChatId(id - 1);
+        setChatId(chat.id - 1);
         setIsSelectedChat(true)
     }
 
@@ -34,21 +41,28 @@ export default function Friends() {
     const createChat = async (e) => {
         e.preventDefault()
         try {
-            const formData = {
-                file: file,
-                author_id: user.id
+            let loadFile = null
+            if (file) {
+                const formData = {
+                    file: file,
+                    author_id: user.id
+                }
+
+                loadFile = await post('/load-file', formData);
             }
 
-            const loadFile = await post('/load-file', formData);
 
-            const newData = { ...creatingData, owner_id: user.id, avatar: loadFile.data.name }
+            const newData = { ...creatingData, owner_id: user.id, avatar: loadFile?.data.name }
             console.log(newData);
             const res = await post("/create-chat", newData);
 
             setChats([...prev, {
                 id: res.data.id,
                 title: res.data.title,
-                source: loadFile.data.name,
+                source: loadFile?.data.name,
+                type: res.data.type,
+                member_length: res.data?.members.length,
+                members: res.data?.members,
             }])
         } catch (error) {
 
@@ -59,7 +73,6 @@ export default function Friends() {
     const [chats, setChats] = useState([]);
 
     const showChats = async () => {
-        //  потом заменить на пост и добавить в тело передачу только тех где состоит пользователь
         const res = await get("/get-chats");
         setChats([])
 
@@ -70,8 +83,15 @@ export default function Friends() {
                 id: element.id,
                 title: element.title,
                 source: element.avatar,
+                type: element.type,
+                created_at: new Date(element.created_at).toLocaleString(),
+                member_length: element.members.length,
+                members: element.members,
                 lastMess: element.messages[element.messages.length - 1]?.content,
-                lastMessTime: new Date(element.messages[element.messages.length - 1]?.created_at).toLocaleString()
+                lastMess_img: element.messages[element.messages.length - 1]?.source?.name,
+                lastMessTime: element.messages.length > 0
+                    ? new Date(element.messages[element?.messages?.length - 1]?.created_at).toLocaleString()
+                    : ''
             }
 
             setChats(prev => [...prev, newRecord]);
@@ -104,16 +124,10 @@ export default function Friends() {
 
     return (
         <MainLayout>
-            <div className="w-full flex justify-center">
-                <div className={`${chatListWidth} border-r-2 border-main`}>
+            <div className="w-full flex items-center border-r-2 border-main">
+                <div className=" overflow-auto resize-x min-w-1/4 max-w-full">
                     <div className="flex justify-around items-center">
                         <h2 className="text-lg font-bold my-4">Чаты</h2>
-                        <div className="">Ширина:
-                            <select name="" id="" className=" btn btn-reverse" onChange={(e) => handleSelectWidth(e)}>
-                                <option value='w-2/4'>По умолчанию</option>
-                                <option value='w-1/4'>1/4</option>
-                                <option value='w-full'>1/2</option>
-                            </select></div>
                         <Popup id="settingsChat" openTrigger={<button>...</button>}>
                             <h3 className="text-xl">
                                 Создание Чата
@@ -173,11 +187,16 @@ export default function Friends() {
                             </form>
                         </Popup>
                     </div>
-                    <div className="max-h-140 overflow-y-auto">
+                    <div className="h-130 overflow-y-auto w-full">
                         {chats.map(chat => (
-                            <div key={chat.id}>
+                            <div key={chat.id}
+                                className={`${chat.type == 'public'
+                                    ? ''
+                                    : chat.members.map(member => (
+                                        `${member?.user_id == user?.id ? '' : `hidden`}`
+                                    ))}`}>
                                 <div className='max-lg:hidden lg:block'>
-                                    <div onClick={() => chatSelect(chat.id)}
+                                    <div onClick={() => chatSelect(chat)}
 
                                         className={`block px-3 py-5 rounded w-full flex items-center gap-2 ${chat.id - 1 === chatId
                                             ? 'bg-blue-100 border border-blue-300'
@@ -192,10 +211,18 @@ export default function Friends() {
                                         )}
                                         <div className="flex-1">
                                             <p className="flex justify-between items-center w-full">
-                                                <span>{chat.title}</span> <span className="text-xs">{chat.lastMessTime}</span></p>
-                                            <p className="text-xs italic">
-                                                {chat.lastMess ? (chat.lastMess) : 'Чат пуст'}
-                                            </p>
+                                                <span>{chat.title}</span>
+                                                <span className="text-xs">{chat.lastMessTime || chat.created_at}</span></p>
+                                            <div className="text-xs italic">
+                                                {(chat.lastMess_img || chat.lastMess)
+                                                    ? (<div className="flex items-center gap-2">
+                                                        {chat.lastMess_img ? (
+                                                            <img src={BASE_URL + chat.lastMess_img} className="w-8" />
+                                                        ) : (null)}
+                                                        {chat?.lastMess}
+                                                    </div>)
+                                                    : 'Чат пуст'}
+                                            </div>
                                         </div>
 
                                         <ContextMenu
@@ -220,7 +247,11 @@ export default function Friends() {
                                         <div
                                         >
                                             {chat.title}
-                                            {chat.lastMess ? chat.lastMess : 'Чат пуст'}
+                                            {chat.lastMess
+                                                ? chat.lastMess
+                                                : chat.lastMess_img
+                                                    ? <img src={BASE_URL + chat.lastMess_img} alt="123" />
+                                                    : 'Чат пуст'}
 
                                             <ContextMenu contextMenuId={chatId} openContextMenuText="..." secondaryActivator={null} >
                                                 <h3>{chat.name}</h3>
@@ -235,15 +266,15 @@ export default function Friends() {
                         ))}
                     </div>
                 </div>
-                <div className={`${isSelectedChat ? '' : 'hidden'} w-full`}>
+                <div className="w-full max-lg:hidden">
+                {isSelectedChat ? (
                     <ChatWindow key={chatId + 1} chat_id={chatId + 1} />
-                </div>
-                <div className={`${isSelectedChat ? 'hidden' : ''} text-center flex justify-center w-2/4 items-center`}>
-                    <span className="p-5 rounded-md bg-main/20">
-                        Select chat and start message
+                ) : (
+                    <span className="m-auto w-1/4 p-5 flex justify-center rounded-md bg-main/20">
+                        Выберите чат для начала общения
                     </span>
-                </div>
-            </div>
+                )}
+            </div></div>
         </MainLayout >
     )
 }

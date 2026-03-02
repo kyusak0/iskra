@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function Sidebar({ children }) {
-
+    const router = useRouter()
     const [open, setOpen] = useState(false);
 
     const { user, logout, loading } = useAuth();
@@ -24,7 +24,7 @@ export default function Sidebar({ children }) {
     }
     return (
         <div className="w-full grid grid-cols-12">
-            <div className={`fixed ${open ? 'col-span-2 pl-20' : 'col-span-1 pl-2'}  h-screen bg-main text-fg left-0 flex flex-col gap-10 justify-evenly `}>
+            <div className={`fixed ${open ? 'max-lg:w-3/4 col-span-2 pl-20' : 'max-lg:hidden col-span-1'} z-2 h-screen bg-main text-fg left-0 flex flex-col items-center gap-10 justify-evenly`}>
                 <div
                     className="absolute top-5 right-5 cursor-pointer text-white font-bold"
                     onClick={() => {
@@ -63,8 +63,8 @@ export default function Sidebar({ children }) {
                         <span title="Справка">📑</span>
                         <span className={open ? 'ml-5' : 'hidden'}>Справка</span></Link>
                     {user ? (
-                        <button onClick={logout}
-                            className="w-max py-1 px-3 ml-5 rounded-lg shadow-sm border-2 hover:bg-gray-100 hover:text-main-hover text-white">
+                        <button onClick={logout} title="Выйти"
+                            className="w-max py-1 px-3 ml-5 rounded-lg shadow-sm border-2 hover:bg-bg hover:text-main text-white font-bold uppercase">
                             {open ? 'Выйти' : '⬅'}
                         </button>
                     ) : (null)}
@@ -72,8 +72,19 @@ export default function Sidebar({ children }) {
                 </div>
             </div>
 
-            <div className={`${open ? 'col-span-10 col-start-3' : 'col-span-11  col-start-2'} `}>
-                <header className="flex justify-between items-center h-15 px-10 bg-white shadow-sm relative w-full">
+            <div className={`${open ? 'col-span-10 col-start-3 max-lg:col-span-12 max-lg:col-start-1 ' : 'col-span-11 col-start-2 max-lg:col-span-12 max-lg:col-start-1'} `}
+            onClick={()=>{
+                if(open){
+                    setOpen(false)
+                }
+                
+                }}>
+                <header className="flex justify-between items-center h-15 px-10 bg-white shadow-sm relative w-full z-1">
+                    <button
+                        className="lg:hidden px-3 py-1 border-2 border-main rounded-full"
+                        onClick={() => setOpen(!open)}
+                    >i</button>
+
                     <button
                         className='border-b-2 border-main px-2 hover:text-main-hover'
                         onClick={back}>Назад</button>
@@ -88,7 +99,7 @@ export default function Sidebar({ children }) {
                         {user?.name ? user.name : "Войти"}
                     </Link>
                 </header>
-                <div className="m-10">
+                <div className="mt-5">
                     {children}
                 </div>
             </div>

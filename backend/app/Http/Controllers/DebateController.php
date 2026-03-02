@@ -14,10 +14,18 @@ use App\Models\Message;
 class DebateController extends Controller
 {
     public function getChats(){
-        $chats = Chat::with(['members', 'members.user', 'messages', 'owner'])->get();
+        $chats = Chat::with(['members', 'members.user', 'messages', 'messages.source', 'owner'])->get();
 
         return response()->json([
             'data' => $chats,
+        ]);
+    }
+
+    public function getChatInfo($id){
+        $chat = Chat::with(['members', 'members.user', 'messages', 'owner'])->findOrFail($id);
+
+        return response()->json([
+            'data' => $chat,
         ]);
     }
 
@@ -27,7 +35,8 @@ class DebateController extends Controller
             'title' => $request->title,
             'bio' => $request->bio,
             'owner_id' => $request->owner_id,
-            'avatar' => $request->avatar
+            'avatar' => $request->avatar,
+            'type' => $request->type
         ]);
 
         $chat->members()->create([

@@ -15,7 +15,7 @@ export default function Popup({
                 {openTrigger}
             </div>
             {open && (
-                <div className="fixed w-full h-screen top-0 left-0 flex flex-col justify-center items-center">
+                <div className="fixed w-full h-screen top-0 left-0 flex flex-col justify-center items-center z-3">
                     <div 
                     className="absolute bg-gray-900 opacity-60 w-full h-screen top-0" 
                     onClick={closePopup}></div>
