@@ -45,11 +45,11 @@ export default function Chat({ chat_id }) {
                     id: element.id,
                     author_id: element.author_id,
                     author_name: element.user.name,
-                    source: null,
+
                     content: element.content,
                     created_at: new Date(element.created_at).toLocaleTimeString(),
 
-                    source: element.source?.name,
+                    source: element.source,
 
                     answer_content: element?.message?.content,
                     answer_id: element?.message?.id,
@@ -166,18 +166,30 @@ export default function Chat({ chat_id }) {
         e.preventDefault();
 
         let loadFile = null
+        let voiceFile = null
+
+        // Обработка обычного файла
         if (file) {
             const formData = {
                 file: file,
                 author_id: user.id
             }
-
             loadFile = await post('/load-file', formData);
+        }
+
+        // Обработка голосового сообщения
+        if (recording) {
+            const voiceFormData = new FormData();
+            voiceFormData.append('file', recording.blob);
+            voiceFormData.append('author_id', user.id);
+            voiceFormData.append('type', 'voice');
+
+            voiceFile = await post('/load-file', voiceFormData);
         }
 
         if (!isConnected) return;
 
-        const messageContent = content;
+        const messageContent = recording ? '🎤 Голосовое сообщение' : content;
         const tempId = Date.now();
 
         const optimisticMessage = {
@@ -185,7 +197,8 @@ export default function Chat({ chat_id }) {
             author_id: user.id,
             author_name: user.name || `User ${user.id}`,
             content: messageContent,
-            source: loadFile?.data.name,
+            source: loadFile?.data.name || voiceFile?.data.name,
+            source_type: recording ? 'voice' : (loadFile ? 'file' : null),
             created_at: new Date().toLocaleTimeString(),
             isSending: true
         };
@@ -194,6 +207,7 @@ export default function Chat({ chat_id }) {
         setContent("");
         setAnswer(null)
         setFile(null)
+        setRecording(null) // очищаем голосовое сообщение после отправки
 
         setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -203,9 +217,10 @@ export default function Chat({ chat_id }) {
             const newData = {
                 author_id: user.id,
                 chat_id: chatId,
-                content: messageContent,
+                content: content,
                 answer_id: answer?.id || null,
-                source_id: loadFile?.data.id,
+                source_id: voiceFile?.data.id || loadFile?.data.id,
+                source_type: recording ? 'voice' : (loadFile ? 'file' : null),
             };
 
             const res = await post("/send-message/chat", newData);
@@ -219,12 +234,14 @@ export default function Chat({ chat_id }) {
                             id: res.data.id,
                             author_id: res.data.author_id,
                             author_name: user.name || `User ${user.id}`,
-                            content: res.data?.content,
+                            content: recording ? '🎤 Голосовое сообщение' : res.data?.content,
                             created_at: new Date(res.data.created_at).toLocaleTimeString(),
                             isSending: false,
                             answer_id: res.data?.answer_id,
                             answer_content: res.data.message?.content,
-                            source: loadFile?.data.name,
+                            source: voiceFile?.data.name || loadFile?.data.name,
+                            source_type: recording ? 'voice' : (loadFile ? 'file' : null),
+                            source_url: recording ? voiceFile?.data.url : null, // URL для аудио
                         }
                         : msg
                 )
@@ -235,14 +252,16 @@ export default function Chat({ chat_id }) {
                     type: 'new_message',
                     message: {
                         id: res.data.id,
-                        content: res.data.content,
+                        content: recording ? '🎤 Голосовое сообщение' : res.data.content,
                         author_id: res.data.author_id,
                         author_name: user.name || `User ${user.id}`,
                         chat_id: res.data.chat_id,
                         created_at: res.data.created_at,
                         answer_id: res.data.answer_id,
-                        answer_content: res.data.message.content,
-                        source: loadFile.data.name,
+                        answer_content: res.data.message?.content,
+                        source: voiceFile?.data.name || loadFile?.data.name,
+                        source_type: recording ? 'voice' : (loadFile ? 'file' : null),
+                        source_url: recording ? voiceFile?.data.url : null,
                     }
                 };
                 wsRef.current.send(JSON.stringify(messageData));
@@ -316,15 +335,115 @@ export default function Chat({ chat_id }) {
             const str = window.location.hash
             setSelectedMess(str.split('#')[1])
         }
-    }, [window?.location.hash])
+    }, [window?.location.hash]);
 
+
+    const [isRecording, setIsRecording] = useState(false);
+    const [recording, setRecording] = useState(null);
+    const [playingId, setPlayingId] = useState(null);
+    const mediaRecorderRef = useRef(null);
+    const streamRef = useRef(null);
+    const audioRefs = useRef({});
+
+    const startRecording = async () => {
+        try {
+            setFile(null)
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+
+
+            streamRef.current = stream;
+
+
+            let chunks = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    chunks.push(e.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                try {
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+                    const url = URL.createObjectURL(blob);
+
+
+                    const newRecording = {
+                        id: Date.now(),
+                        url: url,
+                        blob: blob,
+                        name: `recording-${new Date().toLocaleString()}.webm`,
+                        timestamp: Date.now()
+                    };
+
+
+                    if (recording?.url) {
+                        URL.revokeObjectURL(recording.url);
+                    }
+
+
+                    setRecording(newRecording);
+
+
+                    if (streamRef.current) {
+                        streamRef.current.getTracks().forEach(track => track.stop());
+                    }
+
+
+
+
+
+                    chunks = [];
+
+                } catch (error) {
+                    console.error('Ошибка при остановке записи:', error);
+                }
+            };
+
+
+            mediaRecorder.start(1000);
+            setIsRecording(true);
+
+        } catch (error) {
+            console.error('Ошибка доступа к микрофону:', error);
+            alert('Не удалось получить доступ к микрофону. Пожалуйста, проверьте настройки микрофона.');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
+
+
+    const deleteRecording = (recordingToDelete) => {
+
+        if (recordingToDelete?.url) {
+            URL.revokeObjectURL(recordingToDelete.url);
+        }
+
+
+        if (recordingToDelete?.id && audioRefs.current[recordingToDelete.id]) {
+            delete audioRefs.current[recordingToDelete.id];
+        }
+
+
+        setRecording(null);
+
+
+        setPlayingId(null);
+    };
     return (
         <div className="w-full">
             <div className={`p-2 flex items-center mb-4 border-b-2 border-main`}>
                 <div className="max-lg:hidden px-5">
-                    <button onClick={() => { setChatId('0') }}>
+                    <Link href="/chats" onClick={() => { setChatId('0') }}>
                         ⬅
-                    </button>
+                    </Link>
                 </div>
                 <div className="lg:hidden px-5">
                     <Link href="/chats">
@@ -337,15 +456,11 @@ export default function Chat({ chat_id }) {
                     ) : (
                         <div className="w-10 h-10 rounded-full bg-main flex items-center justify-center font-bold uppercase text-bg"
                         >{chatInfo?.title[0]}</div>
-                    )
-                }
+                    )}
                     <p>
                         {chatInfo?.title}
-                    </p></div>
-
-
-
-
+                    </p>
+                </div>
             </div>
 
             <div className="messages m-auto h-110 mb-4 max-h-180 overflow-y-auto p-2 w-full">
@@ -356,14 +471,14 @@ export default function Chat({ chat_id }) {
                         <div className={`w-full p-3 mb-2 rounded-md w-max
                             ${selectedMess == message.id ? 'shadow-lg shadow-main/50' : ''}
                             ${message.author_id === user?.id
-                                ? 'bg-main/10 ml-auto'
+                                ? 'bg-sec ml-auto'
                                 : 'bg-gray-100 mr-auto'
                             }`} key={message.id}
                             id={`${message.id}`}>
                             <ContextMenu
                                 closing={closeContext}
                                 openTrigger={
-                                    <div id={`${message.id}`} className="w-full">
+                                    <div id={`${message.id}`} className="w-full text-foreground">
                                         {message.author_id !== user?.id ? (
                                             <a
                                                 href={`user/${message.author_id}`}
@@ -390,11 +505,21 @@ export default function Chat({ chat_id }) {
                                         ) : null}
 
                                         {message.source ? (
-                                            <img src={`${BASE_URL}${message.source}`} alt="" className="m-auto w-full max-lg:h-40 h-80" />
+                                            message.source?.type?.includes('image') ?
+                                                (
+                                                    <img src={`${BASE_URL}${message.source.name}`} alt="" className="m-auto w-full max-lg:h-40 h-80" />
+                                                ) : message.source.type.includes('webm') ? (
+                                                    <audio
+                                                        src={`${BASE_URL}${message.source.name}`}
+                                                        className="w-full mb-3 block min-w-[300px]"
+                                                        onEnded={() => setPlayingId(null)}
+                                                        controls
+                                                    />
+                                                ) : ('не поддерживает предпросмотр')
                                         ) : (null)}
 
-                                        <p className="text-gray-800 mt-1">{message.content}</p>
-                                        <p className="text-xs text-gray-500 flex justify-end  right-0">
+                                        <p className="mt-1">{message.content}</p>
+                                        <p className="text-xs flex justify-end  right-0">
                                             {message.created_at}
                                         </p>
                                     </div>
@@ -433,40 +558,86 @@ export default function Chat({ chat_id }) {
                     ))
                 )
                 }
-
-
                 <div ref={messagesEndRef} />
-
-
             </div >
-            <form onSubmit={(e) => handleSend(e, post.id)}
-                className='w-full flex flex-col gap-2 mt-10'>
-                {user ? (
-                    <>
-                        {answer ? (
-                            <div className="flex justify-between">
-                                <a href={`#${answer?.id}`}>{answer?.content}</a>
-                                <button onClick={() => { setAnswer(null) }}>❌</button>
-                            </div>
-                        ) : (null)}
 
-                        {file ? (
-                            <div className="flex justify-between">
-                                {file?.name}
-                                <button onClick={() => { setFile(null) }}>❌</button>
-                            </div>
-                        ) : (null)}
+            {answer ? (
+                <div className="flex justify-between items-center mb-2 m-auto bg-main/20 px-2 py-1 rounded-md">
+                    <a href={`#${answer?.id}`}>{answer?.content}</a>
+                    <button onClick={() => { setAnswer(null) }}>❌</button>
+                </div>
+            ) : (null)}
 
-                        <div className="flex w-full justify-start gap-10 items-center">
-                            <input
-                                type="text"
-                                value={content}
-                                name="content"
-                                onChange={(e) => setContent(e.target.value)}
-                                className='w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:border-main'
-                                placeholder="Комментировать..."
-                            />
+            {file ? (
+                <div className="flex justify-between items-center mb-2 m-auto bg-main/20 px-2 py-1 rounded-md">
+                    {file?.name}
+                    <button onClick={() => { setFile(null) }}>❌</button>
+                </div>
+            ) : (null)}
+            {recording ? (
+                <div
+                    key={recording.id}
+                    className="flex justify-between items-center mb-2 m-auto px-2 py-1 rounded-md"
+                >
+                    <audio
+                        ref={el => audioRefs.current[recording.id] = el}
+                        src={recording?.url}
+                        className="w-full mb-3"
+                        onEnded={() => setPlayingId(null)}
+                        controls
+                    />
 
+                    <button
+                        onClick={() => deleteRecording(recording)}
+                    >
+                        ❌
+                    </button>
+
+                    <div className="flex gap-2">
+                        {/* <button
+                            onClick={() => playRecording(recording.id)}
+                            className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${playingId === recording.id
+                                ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                                : 'bg-green-500 hover:bg-green-600 text-white'
+                                }`}
+                        >
+                            {playingId === recording.id ? '⏸️ Пауза' : '▶️ Воспроизвести'}
+                        </button> */}
+
+                        {/* <button
+                                    onClick={() => downloadRecording(recording)}
+                                    className="py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-md font-medium transition-colors"
+                                >
+                                    💾 Скачать
+                                </button> */}
+
+
+                    </div>
+                </div>
+            ) : (null)}
+
+            <div className="w-full flex gap-5 items-center mt-10">
+                <button
+                    onClick={isRecording ? stopRecording : startRecording}
+                    className={`rounded-md w-max px-2 py-1 text-4xl  ${isRecording
+                        ? 'bg-red-500 '
+                        : 'bg-main'
+                        }`}
+                >
+                    {isRecording ? '⏹️' : '🎙️'}
+                </button>
+                <form onSubmit={handleSend} className='w-full flex flex-col gap-2'>
+                    <div className="flex w-full justify-start gap-10 items-center">
+                        <input
+                            type="text"
+                            value={content}
+                            name="content"
+                            onChange={(e) => setContent(e.target.value)}
+                            className='w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:border-main'
+                            placeholder="Комментировать..."
+                        />
+
+                        {!recording ? (<>
                             <input type="file" name="source_com" id="source_com" className="hidden"
                                 onChange={(e) => {
                                     if (e.target.files && e.target.files[0]) {
@@ -475,27 +646,29 @@ export default function Chat({ chat_id }) {
                                 }}
                             />
                             <label htmlFor="source_com" className="text-4xl rotate-45">📎</label>
+                        </>) : (null)}
 
+
+                        {isRecording ? (
+                            'Запись'
+                        ) : (
                             <button
-                                type="submit"
+                                type='submit'
                                 className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
                                 disabled={!(content.trim() || file)}
                             >
                                 ➤
                             </button>
-                        </div>
-                    </>
-                ) : (
-                    <p className="text-xl text-center">
-                        Для того чтобы оставить Комментарий, нужно войти в аккаунт
-                        <br />
-                        <a href="/login" className="text-main">
-                            Войти
-                        </a>
-                    </p>
+                        )}
 
-                )}
-            </form>
+                    </div>
+                </form>
+            </div>
+
+
+
+
+
         </div >
     );
 }

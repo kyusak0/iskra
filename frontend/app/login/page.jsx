@@ -108,11 +108,13 @@ export default function Login() {
                 }
             }
         } catch (err) {
-            console.log(err.message)
+            setAlertMess({ content: err.message, type: 'err' })
         } finally {
             setParsing(false)
         }
     };
+
+    const [alertMess, setAlertMess] = useState();
 
     return (
         <div id="auth-page">
@@ -163,7 +165,7 @@ export default function Login() {
                     </div>
                 </div>
             </div>
-            {/* <Alert alert={alertMess?.content} /> */}
+            <Alert alert={alertMess} />
         </div>
     );
 }

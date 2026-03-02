@@ -73,13 +73,13 @@ export default function Sidebar({ children }) {
             </div>
 
             <div className={`${open ? 'col-span-10 col-start-3 max-lg:col-span-12 max-lg:col-start-1 ' : 'col-span-11 col-start-2 max-lg:col-span-12 max-lg:col-start-1'} `}
-            onClick={()=>{
-                if(open){
-                    setOpen(false)
-                }
-                
+                onClick={() => {
+                    if (open) {
+                        setOpen(false)
+                    }
+
                 }}>
-                <header className="flex justify-between items-center h-15 px-10 bg-white shadow-sm relative w-full z-1">
+                <header className="flex justify-between items-center h-15 px-10 bg-main shadow-sm relative w-full z-1">
                     <button
                         className="lg:hidden px-3 py-1 border-2 border-main rounded-full"
                         onClick={() => setOpen(!open)}

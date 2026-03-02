@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export default function Alert({ alert }) {
+export default function Alert({ content, type }) {
     const [openedAlert, setOpenedAlert] = useState(false);
     const closeAlert = () => {
         setOpenedAlert(false);
@@ -14,8 +14,8 @@ export default function Alert({ alert }) {
     const [currentAlert, setCurrentAlert] = useState('');
 
     useEffect(() => {
-        if (alert && alert.textContent !== '') {
-        setCurrentAlert(alert);
+        if (content && content.textContent !== '') {
+        setCurrentAlert(content);
         setOpenedAlert(true);
         setNum(10); 
         
@@ -40,7 +40,7 @@ export default function Alert({ alert }) {
     } else {
         setOpenedAlert(false);
     }
-}, [alert]);
+}, [content]);
 
 const handleCloseAlert = () => {
     setOpenedAlert(false);
@@ -51,7 +51,9 @@ const handleCloseAlert = () => {
 };
 
     return (
-        <div className={`${openedAlert ? 'fixed' : 'hidden'} text-left top-20 right-10 w-1/5 bg-white rounded-lg p-2 `}>
+        <div className={`${openedAlert ? 'fixed' : 'hidden'} border-2
+        ${type == 'warn' ? 'border-yellow-500' : type == 'err' ? 'border-red-500' : 'border-main'}
+        text-left top-20 right-10 w-1/5 bg-bg rounded-md p-2 `}>
             <div className="relative ">
                 <span className="text-xs text-left">автоматическое закрытие через <span className="text-xl text-main"> {num} </span> секунд</span>
 
@@ -59,7 +61,6 @@ const handleCloseAlert = () => {
             </div>
             <div className="mt-5"></div>
             {currentAlert}
-
         </div>
     )
 }

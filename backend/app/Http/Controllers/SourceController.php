@@ -11,7 +11,7 @@ class SourceController extends Controller
 {
     public function loadFile(Request $request){
         $request->validate([
-            'file' => 'required|file|max:2000000|mimes:jpg,jpeg,png,gif,pdf,mp4,doc,docx,ppt,pptx,xls,xlsx,txt',
+            'file' => 'required|file|max:2000000',
             'author_id' => 'required|exists:users,id',
         ]);
 

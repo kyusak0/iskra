@@ -24,12 +24,12 @@ export default function Popup({
                         <div className="w-full h-10 absolute top-2 flex items-top justify-end gap-5 pr-5">
                             <button
                                 onClick={closePopup}
-                                className="text-gray-500 hover:text-gray-700"
+                                className=""
                                 title="Закрыть"
                             >❌
                             </button>
                         </div>
-                        <div className="w-full bg-white p-5 rounded-md">
+                        <div className="w-full bg-bg p-5 rounded-md">
                             {children}
                         </div>
                     </div>

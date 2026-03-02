@@ -88,6 +88,7 @@ export default function Home() {
         id: element.id,
         title: element.title,
         desc: element.desc,
+        user: element.user,
         author_id: element.author_id,
         author_name: element.user.name,
 
@@ -251,11 +252,17 @@ export default function Home() {
           </form>
           <Popup
             id="create-post"
-            openTrigger={
+            openTrigger={<>
               <button
-                className="w-full px-3 py-2 bg-main hover:opacity-80 rounded-md text-white font-bold uppercase"
+                className="w-full px-3 py-2 bg-main lg:hidden hover:opacity-80 rounded-md text-white font-bold uppercase"
                 title="Создать пост"
               >+</button>
+              <button
+                className="w-full px-3 py-2 bg-main max-lg:hidden hover:opacity-80 rounded-md text-white font-bold uppercase"
+                title="Создать пост"
+              >Создать пост</button>
+            </>
+
             }>
             {user ? (
               <form className="w-full flex flex-col gap-5" onSubmit={createPost}>
@@ -351,7 +358,7 @@ export default function Home() {
                   href={`users/${post.author_id}`}
                   className="flex gap-5 items-center"
                 >
-                  <img alt="avaatr" className="rounded-full w-10 h-10"
+                  <img src={`${BASE_URL + post.user?.avatar}`} alt="avaatr" className="rounded-full w-10 h-10"
                   />
                   {post.author_name}
                 </Link>

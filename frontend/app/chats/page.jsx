@@ -197,9 +197,8 @@ export default function Friends() {
                                     ))}`}>
                                 <div className='max-lg:hidden lg:block'>
                                     <div onClick={() => chatSelect(chat)}
-
                                         className={`block px-3 py-5 rounded w-full flex items-center gap-2 ${chat.id - 1 === chatId
-                                            ? 'bg-blue-100 border border-blue-300'
+                                            ? 'bg-main/20 border border-main'
                                             : 'hover:bg-gray-100'
                                             }`}>
                                         {chat.source ? (
