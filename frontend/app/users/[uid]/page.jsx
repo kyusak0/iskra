@@ -14,8 +14,17 @@ export default function ProfilePage() {
 
     const [userData, setUserData] = useState(null);
     const router = useRouter()
+    const [disable2FAOpen, setDisable2FAOpen] = useState(false);
+    const [disableCode, setDisableCode]= useState();
+    const [disableForm, setDisableForm] = useState({
+        email: '',
+        password: '',
+        code: '',
+    });
+    const [disableLoading, setDisableLoading] = useState(false);
+    const [disableError, setDisableError] = useState('');
 
-    const { user, get, loading } = useAuth()
+    const { user, get, post, loading } = useAuth()
 
     useEffect(() => {
         getUserInfo(params.uid);
@@ -28,7 +37,8 @@ export default function ProfilePage() {
                 setUserData({
                     name: res.data.name,
                     avatar: res.data.avatar,
-                    posts: res.data.posts
+                    posts: res.data.posts,
+                    google2fa_enabled: !!res.data.google2fa_enabled,
                 });
             } else {
                 router.push('/404')
@@ -39,6 +49,45 @@ export default function ProfilePage() {
             console.log(error.message)
         }
     }
+    const handleDisableChange = (e) => {
+        const { name, value } = e.target;
+
+        setDisableForm((prev) => ({
+            ...prev,
+            [name]: name === 'code' ? value.replace(/\D/g, '') : value,
+        }));
+    };
+    const handleDisable2FA = async (e) => {
+        e.preventDefault();
+        setDisableLoading(true);
+        setDisableError('');
+
+        try {
+            const res = await post('/2fa/disable', disableForm);
+
+            if (res.success === false) {
+                setDisableError(res.error || 'Не удалось отключить 2FA');
+                return;
+            }
+
+            setUserData((prev) => ({
+                ...prev,
+                google2fa_enabled: false,
+            }));
+
+            setDisableForm({
+                email: '',
+                password: '',
+                code: '',
+            });
+
+            setDisable2FAOpen(false);
+        } catch (error) {
+            setDisableError(error.message || 'Ошибка отключения 2FA');
+        } finally {
+            setDisableLoading(false);
+        }
+    };
 
     return (
         <MainLayout>
@@ -55,6 +104,91 @@ export default function ProfilePage() {
                 </h2>
 
                 <div className="grid grid-cols-3 gap-5 text-center">
+                    {user && String(user.id) === String(params.uid) && (
+                        <div className="col-span-3 flex flex-col gap-3 items-center">
+                            {!userData?.google2fa_enabled ? (
+                                <button
+                                    onClick={() => router.push(`/users/${params.uid}/2fa`)}
+                                    className="px-4 py-2 bg-main text-white font-bold rounded-md"
+                                >
+                                    Включить 2FA
+                                </button>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            setDisable2FAOpen((prev) => !prev);
+                                            setDisableError('');
+                                            setDisableCode('');
+                                        }}
+                                        className="px-4 py-2 bg-red-600 text-white font-bold rounded-md"
+                                    >
+                                        Выключить 2FA
+                                    </button>
+
+                                    {disable2FAOpen && (
+                                     
+                                            <form
+                                                onSubmit={handleDisable2FA}
+                                                className="flex flex-col gap-3 w-full max-w-sm"
+                                            >
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    value={disableForm.email}
+                                                    onChange={handleDisableChange}
+                                                    placeholder="Введите email"
+                                                    className="w-full px-3 py-2 border-2 border-main rounded-md"
+                                                    required
+                                                />
+
+                                                <input
+                                                    type="password"
+                                                    name="password"
+                                                    value={disableForm.password}
+                                                    onChange={handleDisableChange}
+                                                    placeholder="Введите пароль"
+                                                    className="w-full px-3 py-2 border-2 border-main rounded-md"
+                                                    required
+                                                />
+
+                                                <input
+                                                    type="text"
+                                                    name="code"
+                                                    inputMode="numeric"
+                                                    maxLength={6}
+                                                    value={disableForm.code}
+                                                    onChange={handleDisableChange}
+                                                    placeholder="123456"
+                                                    className="w-full px-3 py-2 border-2 border-main rounded-md text-center text-xl tracking-[0.3em]"
+                                                    required
+                                                />
+
+                                                {disableError && (
+                                                    <p className="text-red-500 text-center">{disableError}</p>
+                                                )}
+
+                                                <button
+                                                    type="submit"
+                                                    disabled={
+                                                        disableForm.code.length !== 6 ||
+                                                        !disableForm.email ||
+                                                        !disableForm.password ||
+                                                        disableLoading
+                                                    }
+                                                    className="px-4 py-2 bg-main text-white font-bold rounded-md disabled:bg-gray-300"
+                                                >
+                                                    {disableLoading ? 'Проверка...' : 'Подтвердить отключение'}
+                                                </button>
+                                           
+
+                                            
+                                        </form>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                     <div className="col-span-1">подписчиков</div>
                     <div className="col-span-1">подписки</div>
                     <div className="col-span-1">???</div>

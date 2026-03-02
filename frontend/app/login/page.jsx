@@ -2,168 +2,289 @@
 
 import { useAuth } from '../../context/authContext';
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import logoImage from '../../public/next.svg'
-
+import logoImage from '../../public/next.svg';
 import DotPattern from '../../components/ui/dotPattern';
-import Alert from '../../components/alert/Alert';
 
 export default function Login() {
-    const [formData, setFormData] = useState({
-        email: '',
-        password: ''
-    });
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
 
-    const [parsing, setParsing] = useState(false);
-    const [errors, setErrors] = useState({});
-    const { login } = useAuth();
+  const [otpCode, setOtpCode] = useState('');
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [loginToken, setLoginToken] = useState('');
 
-    const [loginDisabled, setLoginDisabled] = useState(true)
+  const [parsing, setParsing] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [loginDisabled, setLoginDisabled] = useState(true);
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        const newValue = { ...formData, [name]: value };
+  const { login, verify2FA } = useAuth();
 
-        console.log(newValue)
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    const newValue = { ...formData, [name]: value };
 
-        if (newValue.email.includes('@')
-            && (newValue.email.includes('mail.') || newValue.email.includes('yandex.'))
-            && (newValue.email.includes('.ru') || newValue.email.includes('.com'))
-            && newValue.password.length > 8) {
-            setLoginDisabled(false);
-            console.log(true)
+    if (
+      newValue.email.includes('@') &&
+      (newValue.email.includes('mail.') || newValue.email.includes('yandex.')) &&
+      (newValue.email.includes('.ru') || newValue.email.includes('.com')) &&
+      newValue.password.length > 8
+    ) {
+      setLoginDisabled(false);
+    } else {
+      setLoginDisabled(true);
+    }
+
+    setFormData(newValue);
+  };
+
+  const handleOtpChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '');
+    setOtpCode(value);
+  };
+
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let W = (canvas.width = window.innerWidth);
+    let H = (canvas.height = window.innerHeight);
+
+    const onResize = () => {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    };
+    window.addEventListener("resize", onResize);
+
+    const fireflies = Array.from({ length: 200 }).map(() => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: 1.5 + Math.random() * 6,
+      dx: (Math.random() - 0.5) * 0.4,
+      dy: (Math.random() - 0.5) * 0.4,
+      glow: Math.random(),
+    }));
+
+    let raf = 0;
+    const animate = () => {
+      ctx.clearRect(0, 0, W, H);
+      fireflies.forEach((f) => {
+        f.x += f.dx;
+        f.y += f.dy;
+        f.glow += (Math.random() - 0.5) * 0.02;
+
+        if (f.x < 0 || f.x > W) f.dx *= -1;
+        if (f.y < 0 || f.y > H) f.dy *= -1;
+
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,180,${0.5 + f.glow})`;
+        ctx.fill();
+      });
+      raf = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setParsing(true);
+    setErrors({});
+
+    try {
+      const result = await login(formData);
+
+      if (!result.success) {
+        if (typeof result.error === 'object') {
+          setErrors(result.error);
         } else {
-            setLoginDisabled(true);
-            console.log(false)
+          setErrors({ general: result.error });
         }
+        return;
+      }
 
-        setFormData(newValue);
-    };
+      if (result.requires_2fa) {
+        setRequires2FA(true);
+        setLoginToken(result.login_token || '');
+        return;
+      }
+    } catch (err) {
+      setErrors({ general: err.message || 'Ошибка входа' });
+    } finally {
+      setParsing(false);
+    }
+  };
 
-    const dotPatternRef = useRef(null);
-    const canvasRef = useRef(null);
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
+  const handleVerify2FA = async (e) => {
+    e.preventDefault();
+    setOtpLoading(true);
+    setErrors({});
 
-        let W = (canvas.width = window.innerWidth);
-        let H = (canvas.height = window.innerHeight);
+    try {
+      const result = await verify2FA({
+        code: otpCode,
+        loginToken,
+      });
 
-        const onResize = () => {
-            W = canvas.width = window.innerWidth;
-            H = canvas.height = window.innerHeight;
-        };
-        window.addEventListener("resize", onResize);
-
-
-        const fireflies = Array.from({ length: 200 }).map(() => ({
-            x: Math.random() * W,
-            y: Math.random() * H,
-            r: 1.5 + Math.random() * 6,
-            dx: (Math.random() - 0.5) * 0.4,
-            dy: (Math.random() - 0.5) * 0.4,
-            glow: Math.random(),
-        }));
-
-        let raf = 0;
-        const animate = () => {
-            ctx.clearRect(0, 0, W, H);
-            fireflies.forEach((f) => {
-                f.x += f.dx; f.y += f.dy;
-                f.glow += (Math.random() - 0.5) * 0.02;
-                if (f.x < 0 || f.x > W) f.dx *= -1;
-                if (f.y < 0 || f.y > H) f.dy *= -1;
-                ctx.beginPath();
-                ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255,255,180,${0.5 + f.glow})`;
-                ctx.fill();
-            });
-            raf = requestAnimationFrame(animate);
-        };
-        animate();
-
-        return () => {
-            window.removeEventListener("resize", onResize);
-            cancelAnimationFrame(raf);
-        };
-    }, []);
-
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setParsing(true)
-        setErrors({});
-        try {
-
-            const result = await login(formData);
-
-            if (!result.success) {
-                if (typeof result.error === 'object') {
-                    setErrors(result.error);
-                } else {
-                    setErrors({ general: result.error });
-                }
-            }
-        } catch (err) {
-            console.log(err.message)
-        } finally {
-            setParsing(false)
+      if (!result.success) {
+        if (typeof result.error === 'object') {
+          setErrors(result.error);
+        } else {
+          setErrors({ general: result.error || 'Неверный код' });
         }
-    };
+        return;
+      }
+    } catch (err) {
+      setErrors({ general: err.message || 'Ошибка проверки 2FA' });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
 
-    return (
-        <div id="auth-page">
-            <canvas ref={canvasRef} id="fireflies" className='bg-black fixed top-0 z-index[-1] w-full h-full' />
-            <DotPattern initialRadius={140} activeRadius={220} />
-            <div className="fixed z-index-2 flex justify-center items-center w-full h-full">
-                <div className="grid grid-cols-6 shadow-xl bg-bg/15 backdrop-blur-xs p-5 rounded-md text-bg w-2/4" >
-                    <div className="col-span-3 flex flex-col">
-                        <h2 className='text-4xl mb-8 text-main'>Войти</h2>
-                        <form onSubmit={handleSubmit}
-                            className='w-3/4 flex flex-col gap-5'>
-                            <input placeholder='Почта...'
-                                className="w-full px-3 py-2 border-2 border-main rounded-md"
-                                type="text" name="email" id="email"
-                                onChange={handleChange}
-                                required />
+  return (
+    <div id="auth-page">
+      <canvas
+        ref={canvasRef}
+        id="fireflies"
+        className='bg-black fixed top-0 z-index[-1] w-full h-full'
+      />
 
-                            <input placeholder='Пароль...'
-                                className="w-full px-3 py-2 border-2 border-main rounded-md"
-                                type="text" name="password" id="password"
-                                onChange={handleChange}
-                                required />
+      <DotPattern initialRadius={140} activeRadius={220} />
 
-                            <div className='flex flex-col gap-5'>
-                                <a href="#">Забыли пароль?</a>
-                                <button
-                                    className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
-                                    type="submit" disabled={loginDisabled}>
-                                    {parsing ? 'Вход...' : 'Войти'}
-                                </button>
+      <div className="fixed z-index-2 flex justify-center items-center w-full h-full">
+        <div className="grid grid-cols-6 shadow-xl bg-bg/15 backdrop-blur-xs p-5 rounded-md text-bg w-2/4">
+          <div className="col-span-3 flex flex-col">
+            <h2 className='text-4xl mb-8 text-main'>
+              {requires2FA ? 'Подтверждение 2FA' : 'Войти'}
+            </h2>
 
-                            </div>
-                        </form>
-                    </div>
-                    <div className="col-span-3 flex flex-col justify-around items-center border-l-2 border-main">
-                        <div className="">
-                            <a href="/">
-                                <img
-                                    src={logoImage}
-                                    alt="На главную"
-                                    className='logo'
-                                    title='На главную' />
-                            </a>
-                        </div><div className="flex flex-col items-center">
-                            <p>Нет аккаунта? </p>
-                            <p><a href="/register" className='text-main'>Зарегистрироваться</a></p>
-                        </div>
-                    </div>
+            {!requires2FA ? (
+              <form onSubmit={handleSubmit} className='w-3/4 flex flex-col gap-5'>
+                <input
+                  placeholder='Почта...'
+                  className="w-full px-3 py-2 border-2 border-main rounded-md"
+                  type="text"
+                  name="email"
+                  id="email"
+                  onChange={handleChange}
+                  value={formData.email}
+                  required
+                />
+
+                <input
+                  placeholder='Пароль...'
+                  className="w-full px-3 py-2 border-2 border-main rounded-md"
+                  type="password"
+                  name="password"
+                  id="password"
+                  onChange={handleChange}
+                  value={formData.password}
+                  required
+                />
+
+                {errors.general && (
+                  <p className="text-red-400">{errors.general}</p>
+                )}
+
+                <div className='flex flex-col gap-5'>
+                  <a href="#">Забыли пароль?</a>
+
+                  <button
+                    className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
+                    type="submit"
+                    disabled={loginDisabled || parsing}
+                  >
+                    {parsing ? 'Вход...' : 'Войти'}
+                  </button>
                 </div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerify2FA} className='w-3/4 flex flex-col gap-5'>
+                <div className="p-3 rounded-md border border-main bg-black/20">
+                  <p className="text-sm">
+                    На аккаунте включена двухфакторная аутентификация.
+                    Введи 6-значный код из Google Authenticator.
+                  </p>
+                </div>
+
+                <input
+                  placeholder='123456'
+                  className="w-full px-3 py-3 border-2 border-main rounded-md text-center text-2xl tracking-[0.4em]"
+                  type="text"
+                  name="otp"
+                  id="otp"
+                  inputMode="numeric"
+                  maxLength={6}
+                  onChange={handleOtpChange}
+                  value={otpCode}
+                  required
+                />
+
+                {errors.general && (
+                  <p className="text-red-400">{errors.general}</p>
+                )}
+
+                <div className='flex flex-col gap-3'>
+                  <button
+                    className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
+                    type="submit"
+                    disabled={otpCode.length !== 6 || otpLoading || !loginToken}
+                  >
+                    {otpLoading ? 'Проверка...' : 'Подтвердить'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRequires2FA(false);
+                      setOtpCode('');
+                      setLoginToken('');
+                      setErrors({});
+                    }}
+                    className="px-3 py-2 border border-main rounded-md"
+                  >
+                    Назад
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
+          <div className="col-span-3 flex flex-col justify-around items-center border-l-2 border-main">
+            <div>
+              <a href="/">
+                <img
+                  src={logoImage.src}
+                  alt="На главную"
+                  className='logo'
+                  title='На главную'
+                />
+              </a>
             </div>
-            {/* <Alert alert={alertMess?.content} /> */}
+
+            <div className="flex flex-col items-center">
+              <p>Нет аккаунта?</p>
+              <p>
+                <a href="/register" className='text-main'>
+                  Зарегистрироваться
+                </a>
+              </p>
+            </div>
+          </div>
         </div>
-    );
+      </div>
+    </div>
+  );
 }
