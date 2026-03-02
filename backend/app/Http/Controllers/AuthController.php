@@ -101,4 +101,14 @@ class AuthController extends Controller
             'success' => false,
         ]);
     }
+
+    public function setAvatar(Request $request){
+        $user = User::findOrFail($request->user_id);
+        $user->update(['avatar' => $request->avatar]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $user
+        ]);
+    }
 }
