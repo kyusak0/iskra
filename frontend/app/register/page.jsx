@@ -90,29 +90,35 @@ export default function Register() {
             cancelAnimationFrame(raf);
         };
     }, []);
+    
+    const [alert, setAlert] = useState();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setParsing(true)
         setErrors({});
-        try{
-           const result = await register(formData);
+        try {
+            const result = await register(formData);
 
-        if (!result.success) {
-            if (typeof result.error === 'object') {
-                setErrors(result.error);
-            } else {
-                setErrors({ general: result.error });
+            if (!result.success) {
+
+                if (typeof result.error === 'object') {
+                    setAlert({ content: result.error, type: 'err' })
+                } else {
+                    setAlert({ content: result.error, type: 'err' })
+                }
+
+                setAlert({ content: 'На данный момент работа сервера приостановлена', type: 'err' })
+                return;
             }
-        } 
-        }catch(err){
-            console.log(err.message)
-        }finally{
+        } catch (err) {
+            setAlert({ content: err.message, type: 'err' })
+        } finally {
             setParsing(false)
         }
-
-        
     };
+
+      
 
     return (
         <div id="reg-page">
@@ -155,7 +161,7 @@ export default function Register() {
                                 <button
                                     className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
                                     type="submit" disabled={regDisabled}>
-                                    {parsing? 'Регистрация...' : 'Зарегистрироваться'}
+                                    {parsing ? 'Регистрация...' : 'Зарегистрироваться'}
                                 </button>
                             </div>
                         </form>
@@ -176,7 +182,7 @@ export default function Register() {
                     </div>
                 </div>
             </div>
-            {/* <Alert alert={alert?.content} /> */}
+            <Alert id={Date.now()} content={alert?.content} type={alert?.type} />
         </div>
     );
 }

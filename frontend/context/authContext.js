@@ -171,7 +171,9 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('token', token);
             setUser(user);
             router.push('/dashboard');
-
+            if(!response.success){
+                return { success: false };
+            }
             return { success: true };
         } catch (error) {
             return {

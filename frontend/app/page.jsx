@@ -78,31 +78,39 @@ export default function Home() {
     }
   }
 
+  const [alert, setAlert] = useState();
+
   const getPost = async () => {
 
     const res = await get('/get-posts')
     setPosts([])
 
-    res.data.forEach(element => {
-      const newRecord = {
-        id: element.id,
-        title: element.title,
-        desc: element.desc,
-        user: element.user,
-        author_id: element.author_id,
-        author_name: element.user.name,
+    if (res.success) {
+      res.data.forEach(element => {
+        const newRecord = {
+          id: element.id,
+          title: element.title,
+          desc: element.desc,
+          user: element.user,
+          author_id: element.author_id,
+          author_name: element.user.name,
 
-        avatar: element.user.avatar,
+          avatar: element.user.avatar,
 
-        source: element.source?.name,
-        source_type: element.source?.type,
-        type: element.type,
-        comments: element?.messages?.length || 0,
-        created_at: new Date(element.created_at).toLocaleDateString()
-      }
+          source: element.source?.name,
+          source_type: element.source?.type,
+          type: element.type,
+          comments: element?.messages?.length || 0,
+          created_at: new Date(element.created_at).toLocaleDateString()
+        }
 
-      setPosts(prev => [...prev, newRecord]);
-    });
+        setPosts(prev => [...prev, newRecord]);
+      });
+    } else {
+      setAlert({ content: 'На данный момент работа сервера приостановлена', type: 'err' })
+    }
+
+
   }
 
   const [comments, setComments] = useState([])
@@ -236,7 +244,7 @@ export default function Home() {
   const [answer, setAnswer] = useState()
 
   return (
-    <MainLayout>
+    <MainLayout alertMess={alert?.content} alertType={alert?.type}>
       <div className="w-full flex flex-col max-lg:flex-col-reverse">
         <div className="w-full flex justify-evenly gap-5 lg:mt-10 max-lg:pt-5 lg:pb-5 lg:border-b-2 lg:border-main">
           <form action="" className="flex max-lg:hidden">

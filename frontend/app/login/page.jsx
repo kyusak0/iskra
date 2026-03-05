@@ -4,6 +4,7 @@ import { useAuth } from '../../context/authContext';
 import { useEffect, useRef, useState } from 'react';
 import logoImage from '../../public/next.svg';
 import DotPattern from '../../components/ui/dotPattern';
+import Alert from '../../components/alert/Alert';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -98,6 +99,8 @@ export default function Login() {
     };
   }, []);
 
+  const [alert, setAlert] = useState();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setParsing(true);
@@ -107,11 +110,14 @@ export default function Login() {
       const result = await login(formData);
 
       if (!result.success) {
+
         if (typeof result.error === 'object') {
-          setErrors(result.error);
+          setAlert({ content: result.error, type: 'err' })
         } else {
-          setErrors({ general: result.error });
+          setAlert({ content: result.error, type: 'err' })
         }
+
+        // setAlert({ content: 'На данный момент работа сервера приостановлена', type: 'err' })
         return;
       }
 
@@ -121,7 +127,7 @@ export default function Login() {
         return;
       }
     } catch (err) {
-      setErrors({ general: err.message || 'Ошибка входа' });
+      setAlert({ content: err.message, type: 'err' })
     } finally {
       setParsing(false);
     }
@@ -158,136 +164,125 @@ export default function Login() {
   return (
     <div id="auth-page">
       <canvas ref={canvasRef} id="fireflies" className='bg-black fixed top-0 z-index[-1] w-full h-full' />
+
+
       <DotPattern initialRadius={140} activeRadius={220} />
+
       <div className="fixed z-index-2 flex justify-center items-center w-full h-full">
-        <div className="grid grid-cols-6 shadow-xl bg-bg/15 backdrop-blur-xs p-5 rounded-md text-bg w-2/4" >
+        <div className="grid grid-cols-6 shadow-xl bg-bg/15 backdrop-blur-xs p-5 rounded-md text-bg w-2/4">
           <div className="col-span-3 flex flex-col">
-            <h2 className='text-4xl mb-8 text-main'>Войти</h2>
-            <form onSubmit={handleSubmit}
-              className='w-3/4 flex flex-col gap-5'>
-              <input placeholder='Почта...'
-                className="w-full px-3 py-2 border-2 border-main rounded-md"
-                type="text" name="email" id="email"
-                onChange={handleChange}
-                required />
+            <h2 className='text-4xl mb-8 text-main'>
+              {requires2FA ? 'Подтверждение 2FA' : 'Войти'}
+            </h2>
 
-              <DotPattern initialRadius={140} activeRadius={220} />
+            {!requires2FA ? (
+              <form onSubmit={handleSubmit} className='w-3/4 flex flex-col gap-5'>
+                <input
+                  placeholder='Почта...'
+                  className="w-full px-3 py-2 border-2 border-main rounded-md"
+                  type="text"
+                  name="email"
+                  id="email"
+                  onChange={handleChange}
+                  value={formData.email}
+                  required
+                />
 
-              <div className="fixed z-index-2 flex justify-center items-center w-full h-full">
-                <div className="grid grid-cols-6 shadow-xl bg-bg/15 backdrop-blur-xs p-5 rounded-md text-bg w-2/4">
-                  <div className="col-span-3 flex flex-col">
-                    <h2 className='text-4xl mb-8 text-main'>
-                      {requires2FA ? 'Подтверждение 2FA' : 'Войти'}
-                    </h2>
+                <input
+                  placeholder='Пароль...'
+                  className="w-full px-3 py-2 border-2 border-main rounded-md"
+                  type="password"
+                  name="password"
+                  id="password"
+                  onChange={handleChange}
+                  value={formData.password}
+                  required
+                />
 
-                    {!requires2FA ? (
-                      <form onSubmit={handleSubmit} className='w-3/4 flex flex-col gap-5'>
-                        <input
-                          placeholder='Почта...'
-                          className="w-full px-3 py-2 border-2 border-main rounded-md"
-                          type="text"
-                          name="email"
-                          id="email"
-                          onChange={handleChange}
-                          value={formData.email}
-                          required
-                        />
+                {errors.general && (
+                  <p className="text-red-400">{errors.general}</p>
+                )}
 
-                        <input
-                          placeholder='Пароль...'
-                          className="w-full px-3 py-2 border-2 border-main rounded-md"
-                          type="password"
-                          name="password"
-                          id="password"
-                          onChange={handleChange}
-                          value={formData.password}
-                          required
-                        />
+                <div className='flex flex-col gap-5'>
+                  <a href="#">Забыли пароль?</a>
 
-                        {errors.general && (
-                          <p className="text-red-400">{errors.general}</p>
-                        )}
+                  <button
+                    className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
+                    type="submit"
+                    disabled={loginDisabled || parsing}
+                  >
+                    {parsing ? 'Вход...' : 'Войти'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerify2FA} className='w-3/4 flex flex-col gap-5'>
+                <div className="p-3 rounded-md border border-main bg-black/20">
+                  <p className="text-sm">
+                    На аккаунте включена двухфакторная аутентификация.
+                    Введи 6-значный код из Google Authenticator.
+                  </p>
+                </div>
 
-                        <div className='flex flex-col gap-5'>
-                          <a href="#">Забыли пароль?</a>
+                <input
+                  placeholder='123456'
+                  className="w-full px-3 py-3 border-2 border-main rounded-md text-center text-2xl tracking-[0.4em]"
+                  type="text"
+                  name="otp"
+                  id="otp"
+                  inputMode="numeric"
+                  maxLength={6}
+                  onChange={handleOtpChange}
+                  value={otpCode}
+                  required
+                />
 
-                          <button
-                            className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
-                            type="submit"
-                            disabled={loginDisabled || parsing}
-                          >
-                            {parsing ? 'Вход...' : 'Войти'}
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <form onSubmit={handleVerify2FA} className='w-3/4 flex flex-col gap-5'>
-                        <div className="p-3 rounded-md border border-main bg-black/20">
-                          <p className="text-sm">
-                            На аккаунте включена двухфакторная аутентификация.
-                            Введи 6-значный код из Google Authenticator.
-                          </p>
-                        </div>
+                {errors.general && (
+                  <p className="text-red-400">{errors.general}</p>
+                )}
 
-                        <input
-                          placeholder='123456'
-                          className="w-full px-3 py-3 border-2 border-main rounded-md text-center text-2xl tracking-[0.4em]"
-                          type="text"
-                          name="otp"
-                          id="otp"
-                          inputMode="numeric"
-                          maxLength={6}
-                          onChange={handleOtpChange}
-                          value={otpCode}
-                          required
-                        />
+                <div className='flex flex-col gap-3'>
+                  <button
+                    className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
+                    type="submit"
+                    disabled={otpCode.length !== 6 || otpLoading || !loginToken}
+                  >
+                    {otpLoading ? 'Проверка...' : 'Подтвердить'}
+                  </button>
 
-                        {errors.general && (
-                          <p className="text-red-400">{errors.general}</p>
-                        )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRequires2FA(false);
+                      setOtpCode('');
+                      setLoginToken('');
+                      setErrors({});
+                    }}
+                    className="px-3 py-2 border border-main rounded-md"
+                  >
+                    Назад
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
 
-                        <div className='flex flex-col gap-3'>
-                          <button
-                            className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
-                            type="submit"
-                            disabled={otpCode.length !== 6 || otpLoading || !loginToken}
-                          >
-                            {otpLoading ? 'Проверка...' : 'Подтвердить'}
-                          </button>
+          <div className="col-span-3 flex flex-col justify-around items-center border-l-2 border-main">
+            <div>
+              <a href="/">
+                <img
+                  src={logoImage.src}
+                  alt="На главную"
+                  className='logo'
+                  title='На главную'
+                />
+              </a>
+            </div>
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRequires2FA(false);
-                              setOtpCode('');
-                              setLoginToken('');
-                              setErrors({});
-                            }}
-                            className="px-3 py-2 border border-main rounded-md"
-                          >
-                            Назад
-                          </button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-
-                  <div className="col-span-3 flex flex-col justify-around items-center border-l-2 border-main">
-                    <div>
-                      <a href="/">
-                        <img
-                          src={logoImage.src}
-                          alt="На главную"
-                          className='logo'
-                          title='На главную'
-                        />
-                      </a>
-                    </div>
-                    <Alert alert={alertMess} />
-                  </div >
-                </div >
-              </div >
-
-            </form></div></div></div></div>
+          </div >
+        </div >
+      </div >
+      <Alert id={Date.now()} content={alert?.content} type={alert?.type} />
+    </div>
   );
 }

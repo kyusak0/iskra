@@ -4,7 +4,7 @@ import Alert from "../components/alert/Alert";
 import Sidebar from "../components/sidebar/Sidebar";
 
 
-export default function MainLayout({ children, alertMess }) {
+export default function MainLayout({ children, alertMess, alertType }) {
 
   return (
     <>
@@ -14,7 +14,7 @@ export default function MainLayout({ children, alertMess }) {
         </Sidebar>
 
       </div>
-      <Alert alert={alertMess} />
+      <Alert id={Date.now()} content={alertMess} type={alertType} />
     </>
   );
 }

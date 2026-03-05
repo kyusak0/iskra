@@ -22,12 +22,13 @@ class PostController extends Controller
 
         if(!empty($post)){
             return response()->json([
-                'message' => 'success',
+                'success' => true,
                 'data' => $post,
             ]);
         }
 
         return response()->json([
+            'success' => false,
             'message' => 'failed',
         ]);
     }
@@ -36,6 +37,7 @@ class PostController extends Controller
         $posts = Post::with(['user', 'source', 'messages'])->get();
 
         return response()->json([
+            'success' => true,
             'data' => $posts,
         ]);
     }
