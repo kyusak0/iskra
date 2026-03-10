@@ -26,9 +26,9 @@ export default function VoiceRecorder() {
                     date: new Date().toLocaleString(),
                     duration: '0:00' // Можно добавить расчет длительности
                 };
-                
+
                 setRecordings(prev => [newRecording, ...prev]);
-                
+
                 // Здесь отправка blob на сервер (fetch)
                 // uploadToServer(blob);
             };
@@ -59,7 +59,7 @@ export default function VoiceRecorder() {
                 audioRefs.current[playingId]?.pause();
                 audioRefs.current[playingId].currentTime = 0;
             }
-            
+
             audioRefs.current[id]?.play();
             setPlayingId(id);
         }
@@ -75,7 +75,7 @@ export default function VoiceRecorder() {
             }
             return newRecordings;
         });
-        
+
         if (playingId === id) {
             setPlayingId(null);
         }
@@ -88,16 +88,30 @@ export default function VoiceRecorder() {
         a.click();
     };
 
+    const snap = () => {
+        const video = document.getElementById('video');
+        const videos = navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => { video.srcObject = stream; video.play(); })
+            .catch(err => console.error("Ошибка: " + err));
+
+        video.stop()
+
+        const a = document.createElement('a');
+        a.href = videos.url;
+        let videos_id = Date.now()
+        a.download = `video-${videos_id}.mp4`;
+        a.click();
+    }
+
     return (
         <div className="max-w-2xl mx-auto p-4">
             <div className="mb-6 text-center">
                 <button
                     onClick={recording ? stopRecording : startRecording}
-                    className={`px-6 py-3 rounded-full font-semibold text-white transition-colors ${
-                        recording 
-                            ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                            : 'bg-blue-500 hover:bg-blue-600'
-                    }`}
+                    className={`px-6 py-3 rounded-full font-semibold text-white transition-colors ${recording
+                        ? 'bg-red-500 hover:bg-red-600 animate-pulse'
+                        : 'bg-blue-500 hover:bg-blue-600'
+                        }`}
                 >
                     {recording ? '⏹️ Остановить запись' : '🎙️ Начать запись'}
                 </button>
@@ -109,8 +123,8 @@ export default function VoiceRecorder() {
                 <div className="space-y-3">
                     <h2 className="text-xl font-bold mb-4">Записи ({recordings.length})</h2>
                     {recordings.map((recording) => (
-                        <div 
-                            key={recording.id} 
+                        <div
+                            key={recording.id}
                             className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow"
                         >
                             <div className="flex items-center justify-between mb-2">
@@ -121,34 +135,33 @@ export default function VoiceRecorder() {
                                     {recording.duration}
                                 </span>
                             </div>
-                            
-                            <audio 
+
+                            <audio
                                 ref={el => audioRefs.current[recording.id] = el}
-                                src={recording.url} 
+                                src={recording.url}
                                 className="w-full mb-3"
                                 onEnded={() => setPlayingId(null)}
                                 controls
                             />
-                            
+
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => playRecording(recording.id)}
-                                    className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-                                        playingId === recording.id
-                                            ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                                            : 'bg-green-500 hover:bg-green-600 text-white'
-                                    }`}
+                                    className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${playingId === recording.id
+                                        ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                                        : 'bg-green-500 hover:bg-green-600 text-white'
+                                        }`}
                                 >
                                     {playingId === recording.id ? '⏸️ Пауза' : '▶️ Воспроизвести'}
                                 </button>
-                                
+
                                 <button
                                     onClick={() => downloadRecording(recording)}
                                     className="py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-md font-medium transition-colors"
                                 >
                                     💾 Скачать
                                 </button>
-                                
+
                                 <button
                                     onClick={() => deleteRecording(recording.id)}
                                     className="py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-md font-medium transition-colors"
@@ -164,6 +177,11 @@ export default function VoiceRecorder() {
                     <p className="text-gray-500">Нет записей. Нажмите кнопку записи чтобы начать</p>
                 </div>
             )}
+
+
+
+            <video id="video" width="640" height="480" autoPlay></video>
+            <button id="snap" onClick={snap}>Видео</button>
         </div>
     );
 }

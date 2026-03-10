@@ -8,6 +8,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\DebateController;
 use App\Http\Controllers\SourceController;
+use App\Http\Controllers\InfoController;
+
 use App\Http\Controllers\TwoFactorController;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -15,6 +17,10 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/get-posts', [PostController::class, 'getPosts']);
 Route::get('/get-post/{id}', [PostController::class, 'getPostInfo']);
+
+Route::get('/get-videos', [PostController::class, 'getVideos']);
+Route::get('/get-video/{id}', [PostController::class, 'getVideoInfo']);
+Route::get('/view/{id}', [PostController::class, 'view']);
 
 Route::post('/get-messages/post/{id}', [DebateController::class, 'getMessages']);
 
@@ -26,6 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/set-avatar', [AuthController::class, 'setAvatar']);
 
     Route::post('/create-post', [PostController::class, 'createPost']);
+    Route::post('/create-video', [PostController::class, 'createVideo']);
 
     Route::post('/load-file', [SourceController::class, 'loadFile']);
 
@@ -36,9 +43,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/get-chats', [DebateController::class, 'getChats']);
     Route::get('/get-chat-info/{id}', [DebateController::class, 'getChatInfo']);
     Route::post('/get-messages/chat/{id}', [DebateController::class, 'getMessages']);
-    
+    Route::post('/subscribe', [DebateController::class, 'subscribe']);
 
+    Route::post('/create-tag', [InfoController::class, 'createTag']);
+    Route::get('/get-tags', [InfoController::class, 'getTags']);
+    Route::post('/edit-tag', [InfoController::class, 'editTag']);
+    Route::get('/delete-tag/{id}', [InfoController::class, 'deleteTag']);
 });
+
 Route::post('/2fa/verify-login', [TwoFactorController::class, 'verifyLoginCode'])
     ->middleware(['auth:sanctum', 'abilities:2fa:verify']);
 

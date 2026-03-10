@@ -45,17 +45,19 @@ export default function Home() {
     e.preventDefault();
 
     try {
-      const formData = {
-        file: file,
-        author_id: user.id
+      let loadFile = null;
+
+      if (file) {
+        const formData = {
+          file: file,
+          author_id: user.id
+        }
+
+        loadFile = await post('/load-file', formData);
       }
 
-      const loadFile = await post('/load-file', formData);
 
-      console.log(loadFile)
-
-
-      const newData = { ...creatingData, author_id: user.id, source_id: loadFile.data.id }
+      const newData = { ...creatingData, author_id: user.id, source_id: loadFile?.data.id }
 
       const result = await post('/create-post', newData);
 
@@ -256,17 +258,17 @@ export default function Home() {
           <form action="" className="flex flex-col gap-2 lg:hidden">
             <input type="search" name="searchPost"
               id="searchPost" placeholder="Искать пост..."
-              className="px-3 py-2 border-2 border-main max-lg:rounded-md rounded-l-md" />
+              className="border-2 max-lg:rounded-md rounded-l-md btn" />
           </form>
           <Popup
             id="create-post"
             openTrigger={<>
               <button
-                className="w-full px-3 py-2 bg-main lg:hidden hover:opacity-80 rounded-md text-white font-bold uppercase"
+                className="w-full btn lg:hidden rounded-md"
                 title="Создать пост"
               >+</button>
               <button
-                className="w-full px-3 py-2 bg-main max-lg:hidden hover:opacity-80 rounded-md text-white font-bold uppercase"
+                className="w-full max-lg:hidden rounded-md btn"
                 title="Создать пост"
               >Создать пост</button>
             </>
@@ -349,10 +351,6 @@ export default function Home() {
         </div>
 
         <div className="flex h-[70vh] overflow-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] flex-col gap-10">
-          {/* <h1 className="text-4xl text-center">
-        Добро пожаловать в соц сеть
-        <span className="text-main size-2"> Искра </span>
-      </h1> */}
 
           {posts.map((post) => (
             <div className={`p-5 shadow-xl rounded-md w-full z-index-[2] 
@@ -519,6 +517,7 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
+
 
                   <form onSubmit={(e) => handleSend(e, post.id)}
                     className='w-full flex flex-col gap-2 mt-10'>

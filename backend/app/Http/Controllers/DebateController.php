@@ -58,20 +58,20 @@ class DebateController extends Controller
 
     public function sendMessage(Request $request){
 
-    $url = Route::current()->uri(); 
-    if(str_contains($url, 'post')){
-        $data = Post::find($request->post_id);
-        $mess = $data->messages()->create(['content' => $request->content, 
-        'author_id' => $request->author_id, 'type' => 'comment', 
-        'answer_id' => $request->answer_id,
-        'source_id' => $request->source_id]);
-    }else{
-        $data = Chat::find($request->chat_id);
-        $mess = $data->messages()->create(['content' => $request->content, 
-        'author_id' => $request->author_id, 'type' => 'chat',
-        'answer_id' => $request->answer_id,
-        'source_id' => $request->source_id]);
-    }
+        $url = Route::current()->uri(); 
+        if(str_contains($url, 'post')){
+            $data = Post::find($request->post_id);
+            $mess = $data->messages()->create(['content' => $request->content, 
+            'author_id' => $request->author_id, 'type' => 'comment', 
+            'answer_id' => $request->answer_id,
+            'source_id' => $request->source_id]);
+        }else{
+            $data = Chat::find($request->chat_id);
+            $mess = $data->messages()->create(['content' => $request->content, 
+            'author_id' => $request->author_id, 'type' => 'chat',
+            'answer_id' => $request->answer_id,
+            'source_id' => $request->source_id]);
+        }
 
         
         
@@ -112,5 +112,17 @@ class DebateController extends Controller
 
     public function deleteMessage(Request $request){
         Message::findOrFail($request->message_id)->delete();
+    }
+
+    public function subscribe(Request $request){
+        $chat = Chat::find($request->chat_id);
+        $chat->members()->create([
+            'user_id' => $request->user_id,
+            'type' => 'member'
+        ]);
+
+        return response()->json([
+            'success' => true,
+        ]);
     }
 }

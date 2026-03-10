@@ -199,7 +199,7 @@ export default function Friends() {
                                     <div onClick={() => chatSelect(chat)}
                                         className={`block px-3 py-5 rounded w-full flex items-center gap-2 ${chat.id - 1 === chatId
                                             ? 'bg-main/20 border border-main'
-                                            : 'hover:bg-gray-100'
+                                            : 'hover:bg-fg/20'
                                             }`}>
                                         {chat.source ? (
                                             <img src={`${BASE_URL}${chat.source}`} alt="" className="w-10 h-10 rounded-full" />
@@ -240,7 +240,7 @@ export default function Friends() {
                                         onClick={() => chatSelect(chat.id)}
                                         className={`block px-3 py-5 rounded w-full ${chat.id - 1 === chatId
                                             ? 'bg-blue-100 border border-blue-300'
-                                            : 'hover:bg-gray-100'
+                                            : 'hover:bg-fg/20'
                                             }`}
                                     >
                                         <div

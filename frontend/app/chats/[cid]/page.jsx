@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MouseEvent } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../context/authContext';
@@ -9,8 +8,7 @@ import ContextMenu from '../../../components/contextMenu/ContextMenu';
 import Popup from '../../../components/popup/Popup';
 
 const BASE_URL = 'http://localhost:8001/storage/';
-
-
+    
 export default function Chat({ chat_id }) {
     const params = useParams();
     let cid = params.cid;
@@ -65,7 +63,8 @@ export default function Chat({ chat_id }) {
         }
     }, [chatId, post]);
 
-    const [chatInfo, setChatInfo] = useState()
+    const [chatInfo, setChatInfo] = useState();
+    const [isMember, setIsMember] = useState(false);
 
     const getChatInfo = async (chat_id) => {
         const res = await get(`/get-chat-info/${chat_id}`);
@@ -79,7 +78,9 @@ export default function Chat({ chat_id }) {
             created_at: new Date(res.data.created_at).toLocaleString(),
             member_length: res.data.members.length,
             members: res.data.members,
-        })
+        });
+
+        setIsMember(res.data.members.filter(element => element.user.id == user?.id).length > 0)
     }
 
     useEffect(() => {
@@ -337,7 +338,6 @@ export default function Chat({ chat_id }) {
         }
     }, [window?.location.hash]);
 
-
     const [isRecording, setIsRecording] = useState(false);
     const [recording, setRecording] = useState(null);
     const [playingId, setPlayingId] = useState(null);
@@ -419,7 +419,6 @@ export default function Chat({ chat_id }) {
         }
     };
 
-
     const deleteRecording = (recordingToDelete) => {
 
         if (recordingToDelete?.url) {
@@ -437,6 +436,52 @@ export default function Chat({ chat_id }) {
 
         setPlayingId(null);
     };
+
+    const subscribed = async () => {
+
+        const tempId = Date.now();
+        try {
+            const data = {
+                user_id: user?.id,
+                chat_id: chatId,
+            }
+            const res = await post('/subscribe', data);
+            console.log(res);
+
+            const newData = {
+                author_id: user.id,
+                chat_id: chatId,
+                content: `Пользователь ${user.name} присоединился к группе`,
+            };
+
+            const sendRes = await post("/send-message/chat", newData);
+
+            setMessages(prev =>
+                prev.map(msg =>
+                    msg.id === tempId
+                        ? {
+                            id: sendRes.data.id,
+                            author_id: sendRes.data.author_id,
+                            author_name: user.name,
+                            content: sendRes.data?.content,
+                            created_at: new Date(sendRes.data.created_at).toLocaleTimeString(),
+                            isSending: false,
+                            answer_id: null,
+                            answer_content: null,
+                            source: null,
+                            source_type: null,
+                            source_url: null,
+                        }
+                        : msg
+                )
+            );
+
+            setIsMember(true)
+        } catch (err) {
+            console.log(err.message)
+        }
+
+    }
     return (
         <div className="w-full">
             <div className={`p-2 flex items-center mb-4 border-b-2 border-main`}>
@@ -463,209 +508,202 @@ export default function Chat({ chat_id }) {
                 </div>
             </div>
 
-            <div className="messages m-auto h-110 mb-4 max-h-180 overflow-y-auto p-2 w-full">
-                {messages.length === 0 ? (
-                    <p className="text-gray-500 text-center p-4" onClick={() => { setContent('Здравствуйте') }}>Чат пуст! <br /> Поздороваться</p>
-                ) : (
-                    messages.map(message => (
-                        <div className={`w-full p-3 mb-2 rounded-md w-max
+            {isMember ? (
+                <div className="w-full">
+                    <div className="messages m-auto h-110 mb-4 max-h-180 overflow-y-auto p-2 w-full">
+                        {messages.length === 0 ? (
+                            <p className="text-gray-500 text-center p-4" onClick={() => { setContent('Здравствуйте') }}>Чат пуст! <br /> Поздороваться</p>
+                        ) : (
+                            messages.map(message => (
+                                <div className={`w-full p-3 mb-2 rounded-md w-max
                             ${selectedMess == message.id ? 'shadow-lg shadow-main/50' : ''}
                             ${message.author_id === user?.id
-                                ? 'bg-sec ml-auto'
-                                : 'bg-gray-100 mr-auto'
-                            }`} key={message.id}
-                            id={`${message.id}`}>
-                            <ContextMenu
-                                closing={closeContext}
-                                openTrigger={
-                                    <div id={`${message.id}`} className="w-full text-foreground">
-                                        {message.author_id !== user?.id ? (
-                                            <a
-                                                href={`user/${message.author_id}`}
-                                                className="text-sm font-semibold w-full ">
-                                                {message.author_name}
-                                            </a>
-                                        ) : (null)}
-
-                                        {message.answer_content ? (
-                                            <div className='w-full'>
-                                                <a
-                                                    href={`#${message.answer_id}`}
-                                                    onClick={() => {
-                                                        setCloseContext(true);
-                                                    }}
-                                                    className={`w-full block border-l-2 rounded-l-md p-2 mb-2 ${message.author_id === user?.id
-                                                        ? 'bg-main/20 border-main'
-                                                        : 'bg-gray-200 border-gray-500'
-                                                        }`}
-                                                >
-                                                    {message.answer_content}
-                                                </a>
-                                            </div>
-                                        ) : null}
-
-                                        {message.source ? (
-                                            message.source?.type?.includes('image') ?
-                                                (
-                                                    <img src={`${BASE_URL}${message.source.name}`} alt="" className="m-auto w-full max-lg:h-40 h-80" />
-                                                ) : message.source.type.includes('webm') ? (
-                                                    <audio
-                                                        src={`${BASE_URL}${message.source.name}`}
-                                                        className="w-full mb-3 block min-w-[300px]"
-                                                        onEnded={() => setPlayingId(null)}
-                                                        controls
-                                                    />
-                                                ) : ('не поддерживает предпросмотр')
-                                        ) : (null)}
-
-                                        <p className="mt-1">{message.content}</p>
-                                        <p className="text-xs flex justify-end  right-0">
-                                            {message.created_at}
-                                        </p>
-                                    </div>
-                                }>
-                                <div className="flex flex-col gap-2 items-start text-left">
-                                    <button className='w-full text-left border-b-2 border-main'
-                                        onClick={() => {
-                                            setCloseContext(true)
-                                            setAnswer({
-                                                id: message.id,
-                                                content: message.content,
-                                            })
-                                        }}>Ответить</button>
-                                    <button
-                                        className='w-full text-left border-b-2 border-main'
-                                        onClick={() => deleteMess(message)}
-                                    >Удалить</button>
-                                    <button className='w-full text-left border-b-2 border-main'
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(message.content);
-                                            setCloseContext(true)
-                                        }}
-                                    >Копировать текст</button>
-                                    <button className='w-full text-left border-b-2 border-main'>Закрепить</button>
-
-                                    <Popup
+                                        ? 'bg-sec ml-auto'
+                                        : 'bg-main/30 mr-auto'
+                                    }`} key={message.id}
+                                    id={`${message.id}`}>
+                                    <ContextMenu
+                                        closing={closeContext}
                                         openTrigger={
-                                            <button className='w-full text-left border-b-2 border-main'>Переслать</button>
+                                            <div id={`${message.id}`} className="w-full text-foreground">
+                                                {message.author_id !== user?.id ? (
+                                                    <a
+                                                        href={`user/${message.author_id}`}
+                                                        className="text-sm font-semibold w-full ">
+                                                        {message.author_name}
+                                                    </a>
+                                                ) : (null)}
+
+                                                {message.answer_content ? (
+                                                    <div className='w-full'>
+                                                        <a
+                                                            href={`#${message.answer_id}`}
+                                                            onClick={() => {
+                                                                setCloseContext(true);
+                                                            }}
+                                                            className={`w-full block border-l-2 rounded-l-md p-2 mb-2 ${message.author_id === user?.id
+                                                                ? 'bg-main/20 border-main'
+                                                                : 'bg-gray-200 border-gray-500'
+                                                                }`}
+                                                        >
+                                                            {message.answer_content}
+                                                        </a>
+                                                    </div>
+                                                ) : null}
+
+                                                {message.source ? (
+                                                    message.source?.type?.includes('image') ?
+                                                        (
+                                                            <img src={`${BASE_URL}${message.source.name}`} alt="" className="m-auto w-full max-lg:h-40 h-80" />
+                                                        ) : message.source.type.includes('webm') ? (
+                                                            <audio
+                                                                src={`${BASE_URL}${message.source.name}`}
+                                                                className="w-full mb-3 block min-w-[300px]"
+                                                                onEnded={() => setPlayingId(null)}
+                                                                controls
+                                                            />
+                                                        ) : ('не поддерживает предпросмотр')
+                                                ) : (null)}
+
+                                                <p className="mt-1">{message.content}</p>
+                                                <p className="text-xs flex justify-end  right-0">
+                                                    {message.created_at}
+                                                </p>
+                                            </div>
                                         }>
-                                        123
-                                    </Popup>
+                                        <div className="flex flex-col gap-2 items-start text-left">
+                                            <button className='w-full text-left border-b-2 border-main'
+                                                onClick={() => {
+                                                    setCloseContext(true)
+                                                    setAnswer({
+                                                        id: message.id,
+                                                        content: message.content,
+                                                    })
+                                                }}>Ответить</button>
+                                            <button
+                                                className='w-full text-left border-b-2 border-main'
+                                                onClick={() => deleteMess(message)}
+                                            >Удалить</button>
+                                            <button className='w-full text-left border-b-2 border-main'
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(message.content);
+                                                    setCloseContext(true)
+                                                }}
+                                            >Копировать текст</button>
+                                            <button className='w-full text-left border-b-2 border-main'>Закрепить</button>
+
+                                            <Popup
+                                                openTrigger={
+                                                    <button className='w-full text-left border-b-2 border-main'>Переслать</button>
+                                                }>
+                                                123
+                                            </Popup>
+                                        </div>
+                                    </ContextMenu>
                                 </div>
-                            </ContextMenu>
+                            ))
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {answer ? (
+                        <div className="flex justify-between items-center mb-2 m-auto bg-main/20 px-2 py-1 rounded-md">
+                            <a href={`#${answer?.id}`}>{answer?.content}</a>
+                            <button onClick={() => { setAnswer(null) }}>❌</button>
                         </div>
+                    ) : (null)}
 
-                    ))
-                )
-                }
-                <div ref={messagesEndRef} />
-            </div >
+                    {file ? (
+                        <div className="flex justify-between items-center mb-2 m-auto bg-main/20 px-2 py-1 rounded-md">
+                            {file?.name}
+                            <button onClick={() => { setFile(null) }}>❌</button>
+                        </div>
+                    ) : (null)}
 
-            {answer ? (
-                <div className="flex justify-between items-center mb-2 m-auto bg-main/20 px-2 py-1 rounded-md">
-                    <a href={`#${answer?.id}`}>{answer?.content}</a>
-                    <button onClick={() => { setAnswer(null) }}>❌</button>
-                </div>
-            ) : (null)}
+                    {recording ? (
+                        <div
+                            key={recording.id}
+                            className="flex justify-between items-center mb-2 m-auto px-2 py-1 rounded-md"
+                        >
+                            <audio
+                                ref={el => audioRefs.current[recording.id] = el}
+                                src={recording?.url}
+                                className="w-full mb-3"
+                                onEnded={() => setPlayingId(null)}
+                                controls
+                            />
 
-            {file ? (
-                <div className="flex justify-between items-center mb-2 m-auto bg-main/20 px-2 py-1 rounded-md">
-                    {file?.name}
-                    <button onClick={() => { setFile(null) }}>❌</button>
-                </div>
-            ) : (null)}
-            {recording ? (
-                <div
-                    key={recording.id}
-                    className="flex justify-between items-center mb-2 m-auto px-2 py-1 rounded-md"
-                >
-                    <audio
-                        ref={el => audioRefs.current[recording.id] = el}
-                        src={recording?.url}
-                        className="w-full mb-3"
-                        onEnded={() => setPlayingId(null)}
-                        controls
-                    />
+                            <button
+                                onClick={() => deleteRecording(recording)}
+                            >
+                                ❌
+                            </button>
+                        </div>
+                    ) : (null)}
 
-                    <button
-                        onClick={() => deleteRecording(recording)}
-                    >
-                        ❌
-                    </button>
-
-                    <div className="flex gap-2">
-                        {/* <button
-                            onClick={() => playRecording(recording.id)}
-                            className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${playingId === recording.id
-                                ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                                : 'bg-green-500 hover:bg-green-600 text-white'
+                    <div className="w-full flex gap-5 items-center mt-10">
+                        <button
+                            onClick={isRecording ? stopRecording : startRecording}
+                            className={`rounded-md w-max px-2 py-1 text-4xl  ${isRecording
+                                ? 'bg-red-500 '
+                                : 'bg-main'
                                 }`}
                         >
-                            {playingId === recording.id ? '⏸️ Пауза' : '▶️ Воспроизвести'}
-                        </button> */}
+                            {isRecording ? '⏹️' : '🎙️'}
+                        </button>
+                        <form onSubmit={handleSend} className='w-full flex flex-col gap-2'>
+                            <div className="flex w-full justify-start gap-10 items-center">
+                                <input
+                                    type="text"
+                                    value={content}
+                                    name="content"
+                                    onChange={(e) => setContent(e.target.value)}
+                                    className='w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:border-main'
+                                    placeholder="Комментировать..."
+                                />
 
-                        {/* <button
-                                    onClick={() => downloadRecording(recording)}
-                                    className="py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-md font-medium transition-colors"
-                                >
-                                    💾 Скачать
-                                </button> */}
+                                {!recording ? (<>
+                                    <input type="file" name="source_com" id="source_com" className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                setFile(e.target.files[0])
+                                            }
+                                        }}
+                                    />
+                                    <label htmlFor="source_com" className="text-4xl rotate-45">📎</label>
+                                </>) : (null)}
 
 
+
+                                {isRecording ? (
+                                    'Запись'
+                                ) : (
+                                    <button
+                                        type='submit'
+                                        className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
+                                        disabled={!(content.trim() || file)}
+                                    >
+                                        ➤
+                                    </button>
+                                )}
+
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            ) : (
+                <div className="relative h-[70vh]">
+                    <div className="absolute bottom-0 left-0 w-full">
+                        <div className="flex flex-col items-center gap-5">
+                            <p>вы не состоите в этой группе. вступить?</p>
+                            <button className="w-full btn rounded-md"
+                                onClick={subscribed}
+                            >Вступить</button>
+                        </div>
                     </div>
                 </div>
-            ) : (null)}
-
-            <div className="w-full flex gap-5 items-center mt-10">
-                <button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    className={`rounded-md w-max px-2 py-1 text-4xl  ${isRecording
-                        ? 'bg-red-500 '
-                        : 'bg-main'
-                        }`}
-                >
-                    {isRecording ? '⏹️' : '🎙️'}
-                </button>
-                <form onSubmit={handleSend} className='w-full flex flex-col gap-2'>
-                    <div className="flex w-full justify-start gap-10 items-center">
-                        <input
-                            type="text"
-                            value={content}
-                            name="content"
-                            onChange={(e) => setContent(e.target.value)}
-                            className='w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:border-main'
-                            placeholder="Комментировать..."
-                        />
-
-                        {!recording ? (<>
-                            <input type="file" name="source_com" id="source_com" className="hidden"
-                                onChange={(e) => {
-                                    if (e.target.files && e.target.files[0]) {
-                                        setFile(e.target.files[0])
-                                    }
-                                }}
-                            />
-                            <label htmlFor="source_com" className="text-4xl rotate-45">📎</label>
-                        </>) : (null)}
-
-
-                        {isRecording ? (
-                            'Запись'
-                        ) : (
-                            <button
-                                type='submit'
-                                className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
-                                disabled={!(content.trim() || file)}
-                            >
-                                ➤
-                            </button>
-                        )}
-
-                    </div>
-                </form>
-            </div>
-
-
+            )}
 
 
 

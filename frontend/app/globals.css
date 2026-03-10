@@ -3,7 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #0b0b0b;
-  --main: #50f999;
+  --main: #76a2ff;
   --secondary: #a4ffac;
 }
 
@@ -19,8 +19,8 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #212121;
-    --foreground: #0095ff;
-    --main: #50f999;
+    --foreground: #4cb4ff;
+    --main: #3a9cff;
     --secondary: #181818;
   }
 }
@@ -43,5 +43,10 @@ label {
 }
 
 .btn{
-
+  /* className="w-full px-3 py-2 bg-main lg:hidden hover:opacity-80 rounded-md text-white font-bold uppercase" */
+  background-color: var(--main);
+  color: white;
+  text-transform: uppercase;
+  font-weight: bold;
+  padding: 10px;
 }

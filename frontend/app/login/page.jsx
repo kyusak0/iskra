@@ -99,7 +99,7 @@ export default function Login() {
     };
   }, []);
 
-  const [alert, setAlert] = useState();
+  const [alert, setAlert] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -110,11 +110,10 @@ export default function Login() {
       const result = await login(formData);
 
       if (!result.success) {
-
         if (typeof result.error === 'object') {
-          setAlert({ content: result.error, type: 'err' })
+          setAlert({ content: result.error.toString(), type: 'err' })
         } else {
-          setAlert({ content: result.error, type: 'err' })
+          console.logsetAlert(result.error)
         }
 
         // setAlert({ content: 'На данный момент работа сервера приостановлена', type: 'err' })
@@ -278,8 +277,8 @@ export default function Login() {
                 />
               </a>
             </div>
-
           </div >
+
         </div >
       </div >
       <Alert id={Date.now()} content={alert?.content} type={alert?.type} />

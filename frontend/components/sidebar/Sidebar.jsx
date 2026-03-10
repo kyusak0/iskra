@@ -24,7 +24,7 @@ export default function Sidebar({ children }) {
     }
     return (
         <div className="w-full grid grid-cols-12">
-            <div className={`fixed ${open ? 'max-lg:w-3/4 col-span-2 pl-20' : 'max-lg:hidden col-span-1'} z-2 h-screen bg-main text-fg left-0 flex flex-col items-center gap-10 justify-evenly`}>
+            <div className={`fixed transition-all duration-300 ${open ? 'max-lg:w-3/4 col-span-2 pl-20' : 'max-lg:hidden col-span-1'} z-2 h-screen bg-main text-fg left-0 flex flex-col items-center gap-10 justify-evenly`}>
                 <div
                     className="absolute top-5 right-5 cursor-pointer text-white font-bold"
                     onClick={() => {
@@ -41,27 +41,27 @@ export default function Sidebar({ children }) {
                 <div className={`flex flex-col opacity-100`}>
 
                     <Link href="/"
-                        className={`${clientPathname == '/' ? `bg-fg text-main ${open ? 'rounded-l-full pr-10' : 'rounded-full'}  w-max` : ''} p-5`}>
+                        className={`${clientPathname == '/' ? `bg-fg uppercase transition-all duration-300 ${open ? 'rounded-l-full pr-10' : 'rounded-full'} w-max` : ''} text-bg font-bold p-5`}>
                         <span title="Главная">🏠</span>
-                        <span className={open ? 'ml-5' : 'hidden'}>Главная</span></Link>
+                        <span className={`transition-all duration-300 ${open ? 'ml-5' : 'hidden'}`}>Главная</span></Link>
                     <Link href="/chats"
-                        className={`${clientPathname.includes('/chats') ? `bg-fg text-main ${open ? 'rounded-l-full pr-10' : 'rounded-full'}  w-max` : ''} p-5`}>
+                        className={`${clientPathname.includes('/chats') ? `bg-fg uppercase transition-all duration-300 ${open ? 'rounded-l-full pr-10' : 'rounded-full'} w-max` : ''} text-bg font-bold p-5`}>
                         <span title="Чаты">💬</span>
-                        <span className={open ? 'ml-5' : 'hidden'}>Чаты</span></Link>
+                        <span className={`transition-all duration-300 ${open ? 'ml-5' : 'hidden'}`}>Чаты</span></Link>
                     <Link href="/videos"
-                        className={`${clientPathname == '/videos' ? `bg-fg text-main ${open ? 'rounded-l-full pr-10' : 'rounded-full'}  w-max` : ''} p-5`}>
+                        className={`${clientPathname == '/videos' ? `bg-fg uppercase transition-all duration-300 ${open ? 'rounded-l-full pr-10' : 'rounded-full'} w-max` : ''} text-bg font-bold p-5`}>
                         <span title="Видео">📹</span>
-                        <span className={open ? 'ml-5' : 'hidden'}>Видео</span></Link>
+                        <span className={`transition-all duration-300 ${open ? 'ml-5' : 'hidden'}`}>Видео</span></Link>
                     <Link href={`/users/${user?.id}`}
-                        className={`${clientPathname.includes('/users/') ? `bg-fg text-main ${open ? 'rounded-l-full pr-10' : 'rounded-full'}  w-max` : ''} p-5`}>
+                        className={`${clientPathname.includes('/users/') ? `bg-fg uppercase transition-all duration-300 ${open ? 'rounded-l-full pr-10' : 'rounded-full'} w-max` : ''} text-bg font-bold p-5`}>
                         <span title="Профиль">👤</span>
-                        <span className={open ? 'ml-5' : 'hidden'}>Профиль</span></Link>
+                        <span className={`transition-all duration-300 ${open ? 'ml-5' : 'hidden'}`}>Профиль</span></Link>
                 </div>
                 <div className="flex flex-col">
                     <Link href="/docs"
                         className={`${clientPathname.includes('/docs') ? 'bg-fg text-main rounded-full w-max' : ''} p-5 text-left `}>
                         <span title="Справка">📑</span>
-                        <span className={open ? 'ml-5' : 'hidden'}>Справка</span></Link>
+                        <span className={`transition-all duration-300 ${open ? 'ml-5' : 'hidden'}`}>Справка</span></Link>
                     {user ? (
                         <button onClick={logout} title="Выйти"
                             className="w-max py-1 px-3 ml-5 rounded-lg shadow-sm border-2 hover:bg-bg hover:text-main text-white font-bold uppercase">
@@ -72,7 +72,7 @@ export default function Sidebar({ children }) {
                 </div>
             </div>
 
-            <div className={`${open ? 'col-span-10 col-start-3 max-lg:col-span-12 max-lg:col-start-1 ' : 'col-span-11 col-start-2 max-lg:col-span-12 max-lg:col-start-1'} `}
+            <div className={`transition-all duration-300 ${open ? 'col-span-10 col-start-3 max-lg:col-span-12 max-lg:col-start-1 ' : 'col-span-11 col-start-2 max-lg:col-span-12 max-lg:col-start-1'} `}
                 onClick={() => {
                     if (open) {
                         setOpen(false)
@@ -86,15 +86,11 @@ export default function Sidebar({ children }) {
                     >i</button>
 
                     <button
-                        className='border-b-2 border-main px-2 hover:text-main-hover'
+                        className='border-b-2 border-bg btn '
                         onClick={back}>Назад</button>
                     <Link
                         href={user?.name ? `/users/${user?.id}` : "/login"}
-                        className={`flex items-center justify-center px-2 py-1 border-2 text-base font-medium rounded-lg 
-                        ${user?.name
-                                ? "hover:text-main-hover border-transparent"
-                                : "hover:text-white border border-main hover:bg-main-hover"
-                            } md:py-2 md:text-lg md:px-5`}
+                        className={`btn border-b-2 border-bg `}
                     >
                         {user?.name ? user.name : "Войти"}
                     </Link>
