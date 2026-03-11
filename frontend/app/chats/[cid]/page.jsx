@@ -8,7 +8,7 @@ import ContextMenu from '../../../components/contextMenu/ContextMenu';
 import Popup from '../../../components/popup/Popup';
 
 const BASE_URL = 'http://localhost:8001/storage/';
-    
+
 export default function Chat({ chat_id }) {
     const params = useParams();
     let cid = params.cid;
@@ -16,6 +16,14 @@ export default function Chat({ chat_id }) {
     if (chat_id && chat_id !== cid) {
         cid = chat_id;
     }
+    const remoteAudioRef = useRef(null);
+   
+    const [incomingCall, setIncomingCall] = useState(null);
+    const [isMuted, setIsMuted] = useState(false);
+    const [callTime, setCallTime] = useState(0);
+
+    const ringtoneRef = useRef(null);
+    const timerRef = useRef(null);
     const [chatId, setChatId] = useState(cid);
     const [messages, setMessages] = useState([]);
     const [content, setContent] = useState("");
@@ -25,10 +33,113 @@ export default function Chat({ chat_id }) {
     const [isLoading, setIsLoading] = useState(false);
     const [answer, setAnswer] = useState();
     const [file, setFile] = useState(null);
+    const [callActive, setCallActive] = useState(false);
+    const peerRef = useRef(null);
+    const localStreamRef = useRef(null);
 
     const lastMessageCount = useRef(0);
 
     const { user, get, post } = useAuth();
+
+    const startCall = async () => {
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        localStreamRef.current = stream;
+
+        peerRef.current = new RTCPeerConnection({
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        });
+
+        stream.getTracks().forEach(track => {
+            peerRef.current.addTrack(track, stream);
+        });
+
+        peerRef.current.onicecandidate = (event) => {
+            if (event.candidate) {
+                wsRef.current.send(JSON.stringify({
+                    type: "call_ice",
+                    data: {
+                        chat_id: chatId,
+                        candidate: event.candidate
+                    }
+                }));
+            }
+        };
+
+        const offer = await peerRef.current.createOffer();
+        await peerRef.current.setLocalDescription(offer);
+console.log("CALL offf")
+        wsRef.current.send(JSON.stringify({
+            type: "call_offer",
+            data: {
+                chat_id: chatId,
+                offer: offer
+            }
+        }));
+
+        setCallActive(true);
+    };
+    const acceptCall = async () => {
+
+        ringtoneRef.current.pause();
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        localStreamRef.current = stream;
+
+        peerRef.current = new RTCPeerConnection({
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        });
+
+        stream.getTracks().forEach(track => {
+            peerRef.current.addTrack(track, stream);
+        });
+
+        peerRef.current.ontrack = (event) => {
+            remoteAudioRef.current.srcObject = event.streams[0];
+        };
+
+        await peerRef.current.setRemoteDescription(incomingCall.offer);
+
+        const answer = await peerRef.current.createAnswer();
+        await peerRef.current.setLocalDescription(answer);
+
+        wsRef.current.send(JSON.stringify({
+            type: "call_answer",
+            data: {
+                chat_id: chatId,
+                answer
+            }
+        }));
+
+        setIncomingCall(null);
+        setCallActive(true);
+        startTimer();
+    };
+    const endCall = () => {
+
+        peerRef.current?.close();
+
+        localStreamRef.current?.getTracks().forEach(t => t.stop());
+
+        wsRef.current.send(JSON.stringify({
+            type: "call_end",
+            data: { chat_id: chatId }
+        }));
+
+        stopTimer();
+        setCallActive(false);
+    };
+    const toggleMute = () => {
+
+        const audioTrack = localStreamRef.current
+            ?.getAudioTracks()[0];
+
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            setIsMuted(!audioTrack.enabled);
+        }
+    };
 
     const getMessages = useCallback(async () => {
         if (!chatId || chatId === '0' || isLoading) return;
@@ -66,6 +177,23 @@ export default function Chat({ chat_id }) {
     const [chatInfo, setChatInfo] = useState();
     const [isMember, setIsMember] = useState(false);
 
+    const startTimer = () => {
+        timerRef.current = setInterval(() => {
+            setCallTime(prev => prev + 1);
+        }, 1000);
+    };
+
+    const formatTime = (sec) => {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `${m}:${s < 10 ? "0" : ""}${s}`;
+    };
+
+    const stopTimer = () => {
+        clearInterval(timerRef.current);
+        setCallTime(0);
+    };
+
     const getChatInfo = async (chat_id) => {
         const res = await get(`/get-chat-info/${chat_id}`);
         console.log(res)
@@ -83,16 +211,57 @@ export default function Chat({ chat_id }) {
         setIsMember(res.data.members.filter(element => element.user.id == user?.id).length > 0)
     }
 
+
+
     useEffect(() => {
-        wsRef.current = new WebSocket('ws://localhost:5000');
+        wsRef.current = new WebSocket('ws://localhost:5001');
 
         wsRef.current.onopen = () => {
             setIsConnected(true);
         };
 
-        wsRef.current.onmessage = (event) => {
+        wsRef.current.onmessage = async (event) => {
             try {
                 const data = JSON.parse(event.data);
+
+                if (data.type === 'call_offer') {
+
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                    peerRef.current = new RTCPeerConnection({
+                        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+                    });
+
+                    stream.getTracks().forEach(track => {
+                        peerRef.current.addTrack(track, stream);
+                    });
+
+                    await peerRef.current.setRemoteDescription(data.data.offer);
+
+                    const answer = await peerRef.current.createAnswer();
+                    await peerRef.current.setLocalDescription(answer);
+
+                    wsRef.current.send(JSON.stringify({
+                        type: "call_answer",
+                        data: {
+                            chat_id: chatId,
+                            answer: answer
+                        }
+                    }));
+                }
+
+                if (data.type === 'call_answer') {
+                    await peerRef.current.setRemoteDescription(data.data.answer);
+                }
+
+                if (data.type === 'call_ice') {
+                    await peerRef.current.addIceCandidate(data.data.candidate);
+                }
+
+                if (data.type === 'call_end') {
+                    peerRef.current?.close();
+                    setCallActive(false);
+                }
 
                 if (data.type === 'new_message' && data.message) {
                     setMessages(prev => {
@@ -117,6 +286,7 @@ export default function Chat({ chat_id }) {
                     );
 
                 }
+
             } catch (error) {
                 console.log('Raw WebSocket message:', event.data);
             }
@@ -482,13 +652,79 @@ export default function Chat({ chat_id }) {
         }
 
     }
+
     return (
         <div className="w-full">
+            <audio ref={ringtoneRef} src="/ringtone.mp3" loop />
+            {incomingCall && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black/50">
+
+                    <div className="bg-white p-6 rounded-xl text-center">
+
+                        <h2 className="text-xl mb-4">Входящий звонок</h2>
+
+                        <div className="flex gap-4 justify-center">
+
+                            <button
+                                onClick={acceptCall}
+                                className="bg-green-500 px-4 py-2 text-white rounded"
+                            >
+                                Принять
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    ringtoneRef.current.pause();
+                                    setIncomingCall(null);
+                                }}
+                                className="bg-red-500 px-4 py-2 text-white rounded"
+                            >
+                                Отклонить
+                            </button>
+
+                        </div>
+
+                    </div>
+                </div>
+            )}
+            {callActive && (
+                <div className="fixed bottom-6 right-6 bg-black text-white p-4 rounded-xl w-64">
+
+                    <div className="text-center mb-2">
+                        📞 Разговор
+                    </div>
+
+                    <div className="text-center mb-3">
+                        {formatTime(callTime)}
+                    </div>
+                    <audio ref={remoteAudioRef} autoPlay />
+
+                    <div className="flex justify-center gap-3">
+
+                        <button
+                            onClick={toggleMute}
+                            className="bg-yellow-500 px-3 py-2 rounded"
+                        >
+                            {isMuted ? "🔈" : "🔇"}
+                        </button>
+
+                        <button
+                            onClick={endCall}
+                            className="bg-red-500 px-3 py-2 rounded"
+                        >
+                            📞
+                        </button>
+
+                    </div>
+
+                </div>
+            )}
             <div className={`p-2 flex items-center mb-4 border-b-2 border-main`}>
                 <div className="max-lg:hidden px-5">
                     <Link href="/chats" onClick={() => { setChatId('0') }}>
                         ⬅
                     </Link>
+                    <button onClick={startCall}>📞</button>
                 </div>
                 <div className="lg:hidden px-5">
                     <Link href="/chats">
