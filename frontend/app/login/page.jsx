@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import logoImage from '../../public/next.svg';
 import DotPattern from '../../components/ui/dotPattern';
 import Alert from '../../components/alert/Alert';
+import Link from 'next/link';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -203,8 +204,9 @@ export default function Login() {
                 )}
 
                 <div className='flex flex-col gap-5'>
-                  <a href="#">Забыли пароль?</a>
-
+                  <div className='flex'><a href="#">Забыли пароль?</a>
+                  <Link className='ml-3' href="/register">Зарегестрироваться</Link></div>
+                  
                   <button
                     className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
                     type="submit"
