@@ -20,11 +20,11 @@ export default function Friends() {
 
     const [creatingData, setCreatingData] = useState();
 
-    const { user,loading, post, get } = useAuth();
+    const { user, loading, post, get } = useAuth();
 
     const router = useRouter();
 
-    if(!user && !loading){
+    if (!user && !loading) {
         router.push('/unauth');
     }
 
@@ -125,7 +125,7 @@ export default function Friends() {
     return (
         <MainLayout>
             <div className="w-full flex items-center border-r-2 border-main">
-                <div className=" overflow-auto resize-x min-w-1/4 max-w-full">
+                <div className=" overflow-auto max-lg:w-full lg:resize-x lg:min-w-1/4 lg:max-w-full">
                     <div className="flex justify-around items-center">
                         <h2 className="text-lg font-bold my-4">Чаты</h2>
                         <Popup id="settingsChat" openTrigger={<button>...</button>}>
@@ -190,7 +190,7 @@ export default function Friends() {
                     <div className="h-130 overflow-y-auto w-full">
                         {chats.map(chat => (
                             <div key={chat.id}
-                                className={`${chat.type == 'public'
+                                className={`w-full ${chat.type == 'public'
                                     ? ''
                                     : chat.members.map(member => (
                                         `${member?.user_id == user?.id ? '' : `hidden`}`
@@ -224,7 +224,7 @@ export default function Friends() {
                                             </div>
                                         </div>
 
-                                        <ContextMenu
+                                        {/* <ContextMenu
                                             openTrigger={
                                                 <button>...</button>
                                             }>
@@ -232,32 +232,38 @@ export default function Friends() {
                                             <button>edit</button>
                                             <button>delete</button>
                                             <button>forward</button>
-                                        </ContextMenu>
+                                        </ContextMenu> */}
                                     </div>
                                 </div>
                                 <div className="max-lg:block lg:hidden">
                                     <Link href={`chats/${chat.id}`}
                                         onClick={() => chatSelect(chat.id)}
-                                        className={`block px-3 py-5 rounded w-full ${chat.id - 1 === chatId
+                                        className={`flex px-3 py-5 rounded w-full ${chat.id - 1 === chatId
                                             ? 'bg-blue-100 border border-blue-300'
                                             : 'hover:bg-fg/20'
                                             }`}
                                     >
-                                        <div
-                                        >
-                                            {chat.title}
-                                            {chat.lastMess
-                                                ? chat.lastMess
-                                                : chat.lastMess_img
-                                                    ? <img src={BASE_URL + chat.lastMess_img} alt="123" />
+                                        {chat.source ? (
+                                            <img src={`${BASE_URL}${chat.source}`} alt="" className="w-10 h-10 rounded-full" />
+                                        ) : (
+                                            <div
+                                                className="w-10 h-10 rounded-full flex justify-center items-center bg-main text-bg uppercase font-bold"
+                                            > {chat.title[0]} </div>
+                                        )}
+                                        <div className="flex-1">
+                                            <p className="flex justify-between items-center w-full">
+                                                <span>{chat.title}</span>
+                                                <span className="text-xs">{chat.lastMessTime || chat.created_at}</span></p>
+                                            <div className="text-xs italic">
+                                                {(chat.lastMess_img || chat.lastMess)
+                                                    ? (<div className="flex items-center gap-2">
+                                                        {chat.lastMess_img ? (
+                                                            <img src={BASE_URL + chat.lastMess_img} className="w-8" />
+                                                        ) : (null)}
+                                                        {chat?.lastMess}
+                                                    </div>)
                                                     : 'Чат пуст'}
-
-                                            <ContextMenu contextMenuId={chatId} openContextMenuText="..." secondaryActivator={null} >
-                                                <h3>{chat.name}</h3>
-                                                <button>edit</button>
-                                                <button>delete</button>
-                                                <button>forward</button>
-                                            </ContextMenu>
+                                            </div>
                                         </div>
                                     </Link>
                                 </div>
@@ -266,14 +272,14 @@ export default function Friends() {
                     </div>
                 </div>
                 <div className="w-full max-lg:hidden">
-                {isSelectedChat ? (
-                    <ChatWindow key={chatId + 1} chat_id={chatId + 1} />
-                ) : (
-                    <span className="m-auto w-1/4 p-5 flex justify-center rounded-md bg-main/20">
-                        Выберите чат для начала общения
-                    </span>
-                )}
-            </div></div>
+                    {isSelectedChat ? (
+                        <ChatWindow key={chatId + 1} chat_id={chatId + 1} />
+                    ) : (
+                        <span className="m-auto w-1/4 p-5 flex justify-center rounded-md bg-main/20">
+                            Выберите чат для начала общения
+                        </span>
+                    )}
+                </div></div>
         </MainLayout >
     )
 }

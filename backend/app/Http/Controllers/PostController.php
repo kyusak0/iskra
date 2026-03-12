@@ -21,6 +21,8 @@ class PostController extends Controller
 
         $post = Post::create($data);
 
+        $post->tags()->attach($request->tags);
+
         if(!empty($post)){
             return response()->json([
                 'success' => true,
@@ -35,7 +37,7 @@ class PostController extends Controller
     }
 
     public function getPosts(){
-        $posts = Post::with(['user', 'source', 'messages'])->get();
+        $posts = Post::with(['user', 'source', 'messages', 'tags'])->get();
 
         return response()->json([
             'success' => true,
@@ -44,7 +46,7 @@ class PostController extends Controller
     }
 
     public function getPostInfo($id){
-        $post = Post::with(['user', 'source', 'messages', 'messages.source', 'messages.user', 'messages.message'])->findOrFail($id);
+        $post = Post::with(['user', 'source', 'messages', 'messages.source', 'messages.user', 'messages.message', 'tags'])->findOrFail($id);
 
         return response()->json([
             'success' => true,
@@ -80,7 +82,10 @@ class PostController extends Controller
     }
 
     public function getVideos(){
-        $videos = Video::orderBy('views_count', 'desc')->with(['source.user', 'source', 'cover', 'messages', 'tags'])->get();
+        $videos = Video::query()
+    ->with(['source.user', 'source', 'cover', 'messages', 'tags'])
+    ->orderBy('views_count', 'desc')
+    ->paginate(3);
 
         return response()->json([
             'success' => true,

@@ -26,7 +26,7 @@ class InfoController extends Controller
     }
 
     public function getTags () {
-        $tags = Tag::all();
+        $tags = Tag::orderBy('name')->get();
 
         return response()->json([
             'success' => true,

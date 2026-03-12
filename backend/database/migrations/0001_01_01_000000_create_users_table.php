@@ -17,9 +17,9 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->text('google2fa_secret')->nullable()->after('password');
-            $table->boolean('google2fa_enabled')->default(false)->after('google2fa_secret');
-            $table->timestamp('google2fa_confirmed_at')->nullable()->after('google2fa_enabled');
+            $table->text('google2fa_secret')->nullable();
+            $table->boolean('google2fa_enabled')->default(false);
+            $table->timestamp('google2fa_confirmed_at')->nullable();
             $table->string('avatar')->nullable();
             $table->enum('role', ['user','admin','moderator'])->default('user');
             $table->rememberToken();

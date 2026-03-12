@@ -24,6 +24,7 @@ export default function Home() {
 
   useEffect(() => {
     getPost();
+    getTags();
   }, [])
 
   const { user, loading, post, get } = useAuth();
@@ -57,7 +58,7 @@ export default function Home() {
       }
 
 
-      const newData = { ...creatingData, author_id: user.id, source_id: loadFile?.data.id }
+      const newData = { ...creatingData, author_id: user.id, source_id: loadFile?.data.id, tags: selectedTags }
 
       const result = await post('/create-post', newData);
 
@@ -98,6 +99,7 @@ export default function Home() {
           author_name: element.user.name,
 
           avatar: element.user.avatar,
+          tags: element.tags,
 
           source: element.source?.name,
           source_type: element.source?.type,
@@ -245,17 +247,85 @@ export default function Home() {
 
   const [answer, setAnswer] = useState()
 
+  const [tags, setTags] = useState([]);
+
+  const getTags = async () => {
+    const res = await get('/get-tags');
+    setTags([])
+
+    res.data.map(el => (
+      setTags(prev => [...prev, {
+        id: el.id,
+        name: el.name
+      }]
+      )
+    ))
+  }
+
+  const search = (e) => {
+    e.preventDefault();
+    console.log(e.target.searchPost?.value)
+
+    const searchTerm = e.target?.searchPost?.value?.toLowerCase();
+    if (searchTerm) {
+      setPosts(
+        posts.filter(el =>
+          el.title?.toLowerCase().includes(searchTerm)
+        )
+      );
+    } else {
+      getPost();
+    }
+  }
+
+  const selectTag = async(e) => {
+    e.preventDefault();
+    console.log(e.target?.value)
+    
+    const searchTerm = e.target?.value;
+    if (searchTerm && searchTerm != 0) {
+      const filteredPosts = posts.filter(video =>
+        video.tags?.some(tag => tag.id == searchTerm)
+      );
+      setPosts(filteredPosts);
+    } else {
+      getPost()
+    }
+  }
+
+  const [selectedTags, setSelectedTags] = useState([]);
+
+  const toggleTag = (tagId) => {
+    setSelectedTags(prev =>
+      prev.includes(tagId)
+        ? prev.filter(id => id !== tagId)
+        : [...prev, tagId]
+    );
+  };
+
   return (
     <MainLayout alertMess={alert?.content} alertType={alert?.type}>
       <div className="w-full flex flex-col max-lg:flex-col-reverse">
         <div className="w-full flex justify-evenly gap-5 lg:mt-10 max-lg:pt-5 lg:pb-5 lg:border-b-2 lg:border-main">
-          <form action="" className="flex max-lg:hidden">
+          <select name="" id=""
+            onChange={selectTag}
+            className="px-3 py-2 border-2 border-main max-lg:rounded-md rounded-md" >
+            <option value='0'>
+              Все теги
+            </option>
+            {tags.map(tag => (
+              <option value={`${tag.id}`} key={`${tag.id}`}>
+                {tag.name}
+              </option>
+            ))}
+          </select>
+          <form action="" className="flex max-lg:hidden" onSubmit={search}>
             <input type="search" name="searchPost"
               id="searchPost" placeholder="Искать пост..."
               className="px-3 py-2 border-2 border-main max-lg:rounded-md rounded-l-md" />
             <button className="px-3 py-2 bg-main hover:opacity-80 rounded-r-md max-lg:rounded-md text-white font-bold uppercase">Искать</button>
           </form>
-          <form action="" className="flex flex-col gap-2 lg:hidden">
+          <form action="" className="flex flex-col gap-2 lg:hidden" onSubmit={search}>
             <input type="search" name="searchPost"
               id="searchPost" placeholder="Искать пост..."
               className="border-2 max-lg:rounded-md rounded-l-md btn" />
@@ -275,7 +345,7 @@ export default function Home() {
 
             }>
             {user ? (
-              <form className="w-full flex flex-col gap-5" onSubmit={createPost}>
+              <form className="w-full flex flex-col gap-5 h-[80vh] overflow-auto" onSubmit={createPost}>
                 <h3 className="text-xl font-bold">
                   Создать пост
                 </h3>
@@ -300,7 +370,7 @@ export default function Home() {
                   value={creatingData.title} />
                 <textarea
                   name="desc"
-                  className="px-3 py-2 border-2 border-main rounded-md resize-none"
+                  className="px-3 py-2 border-2 border-main rounded-md resize-none min-h-20"
                   onChange={handleChange}
                   placeholder="Описание..."
                   value={creatingData.desc} />
@@ -337,6 +407,50 @@ export default function Home() {
                         Публикация видна Вам и Вашим друзьям.
                       </p>
                     </label>
+                  </div>
+                </div>
+
+                <div>
+                  <input
+                    type="hidden"
+                    name="tags"
+                    value={JSON.stringify(selectedTags)}
+                  />
+
+                  {selectedTags.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {selectedTags.map(tagId => {
+                        const tag = tags.find(t => t.id === tagId);
+                        return (
+                          <span key={tagId} className="bg-main text-white px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                            {tag?.name}
+                            <button
+                              type="button"
+                              onClick={() => toggleTag(tagId)}
+                              className="hover:text-red-300"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map(tag => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => toggleTag(tag.id)}
+                        className={`px-4 py-2 rounded-full border-2 text-sm transition-colors ${selectedTags.includes(tag.id)
+                          ? 'bg-main text-white border-main'
+                          : 'border-main'
+                          }`}
+                      >
+                        {tag.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <button className="px-3 py-2 bg-main hover:opacity-80 rounded-md text-bg uppercase font-bold">Создать</button>
@@ -407,13 +521,26 @@ export default function Home() {
                   // </button>
                   null
                 ) : (<span className="text-center italic">нет фото или видео</span>)}
+
+                <ul className="flex gap-2 flex-wrap">
+                  {post.tags?.map(tag => (
+                    <li key={tag.id}
+                      className="bg-main/20 px-2 py-1 rounded-full text-xs ">
+                      {tag.name}
+                    </li>
+                  ))}
+
+                </ul>
                 <p className="lg:text-3xl max-lg:text-xl">
                   {post.title}
                 </p>
-                <p>
+                <p className="truncate">
                   {post.desc}
                 </p>
               </div>
+
+              <a href={`/posts/${post.id}`}
+              className="w-full border-t-2 border-main py-2 px-3 mt-5 hover:bg-gray-200 rounded-b-md text-left">Перейти</a>
               <Popup
                 id="comment"
                 openTrigger={

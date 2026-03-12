@@ -141,5 +141,4 @@ function broadcastToChat(chatId, data, excludeWs = null) {
         }
     });
 }
-console.log("WS MESSAGE:", message);
 console.log('WebSocket server running on port 5000');

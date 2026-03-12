@@ -78,13 +78,26 @@ export default function Videos() {
         setCreatingData({ ...creatingData, [name]: value })
     }
 
-    const [videos, setVideos] = useState([])
+    const [videos, setVideos] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [lastPage, setLastPage] = useState(0);
 
     const getVideos = async () => {
-        const res = await get('/get-videos');
-        setVideos([])
+        let curPage = currentPage
+        if (videos.length > 0) {
+            setCurrentPage(currentPage + 1);
+            curPage++
+        }
 
-        res.data.forEach(el => {
+        const res = await get(`/get-videos?page=${curPage}`);
+
+        if (curPage == 1) {
+            setVideos([])
+        }
+
+        setLastPage(res.data.last_page)
+
+        res.data.data.forEach(el => {
             const newRecord = {
                 id: el.id,
                 cover: el.cover.name,
@@ -131,17 +144,60 @@ export default function Videos() {
         );
     };
 
+    const search = (e) => {
+        e.preventDefault();
+        console.log(e.target.searchVideo?.value)
+
+        const searchTerm = e.target?.searchVideo?.value?.toLowerCase();
+        if (searchTerm) {
+            setVideos(
+                videos.filter(el =>
+                    el.title?.toLowerCase().includes(searchTerm)
+                )
+            );
+        } else {
+            getVideos();
+        }
+    }
+
+    const selectTag = (e) => {
+        e.preventDefault();
+        console.log(e.target?.value)
+
+        const searchTerm = e.target?.value;
+        if (searchTerm && searchTerm != 0) {
+            const filteredVideos = videos.filter(video =>
+                video.tags?.some(tag => tag.id == searchTerm)
+            );
+            setVideos(filteredVideos);
+        } else {
+            getVideos()
+        }
+    }
+
     return (
         <MainLayout>
             <div className="w-full flex flex-col max-lg:flex-col-reverse">
                 <div className="w-full flex justify-evenly gap-5 lg:mt-10 max-lg:pt-5 lg:pb-5 lg:border-b-2 lg:border-main">
-                    <form action="" className="flex max-lg:hidden">
+                    <select name="" id=""
+                        onChange={selectTag}
+                        className="px-3 py-2 border-2 border-main max-lg:rounded-md rounded-md" >
+                        <option value='0'>
+                            Все теги
+                        </option>
+                        {tags.map(tag => (
+                            <option value={`${tag.id}`} key={`${tag.id}`}>
+                                {tag.name}
+                            </option>
+                        ))}
+                    </select>
+                    <form action="" className="flex max-lg:hidden" onSubmit={search}>
                         <input type="search" name="searchVideo"
                             id="searchVideo" placeholder="Искать видео..."
                             className="px-3 py-2 border-2 border-main max-lg:rounded-md rounded-l-md" />
                         <button className="px-3 py-2 bg-main hover:opacity-80 rounded-r-md max-lg:rounded-md text-white font-bold uppercase">Искать</button>
                     </form>
-                    <form action="" className="flex flex-col gap-2 lg:hidden">
+                    <form action="" className="flex flex-col gap-2 lg:hidden" onSubmit={search}>
                         <input type="search" name="searchVideo"
                             id="searchVideo" placeholder="Искать видео..."
                             className="border-2 max-lg:rounded-md rounded-l-md btn" />
@@ -268,7 +324,7 @@ export default function Videos() {
                             </form>
                         ) : (
                             <div className="flex flex-col justify-center text-center"><p>
-                                Кажется вы не вошли в аккаунт. Вы не можете создать пост.</p>
+                                Кажется вы не вошли в аккаунт. Вы не можете создать видео.</p>
                                 <a href="/login" className="text-main">Войти</a>
                             </div>
                         )}
@@ -308,15 +364,17 @@ export default function Videos() {
 
                                     <div className="my-auto">
                                         <p>
-                                           Просмотры: {vid.views} 
+                                            Просмотры: {vid.views}
                                         </p>
                                     </div>
                                 </div>
                             </a>
                         ))
-                    ) : (null)}
+                    ) : ("Ничего не найдено")}
                 </div>
-                <button className="btn rounded-md">
+                <button
+                    onClick={getVideos}
+                    className={`btn rounded-md ${currentPage == lastPage ? 'hidden' : ''}`}>
                     Показать еще
                 </button>
             </div>

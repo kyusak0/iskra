@@ -33,6 +33,7 @@ export default function ProfilePage() {
                     source: res.data.source,
                     comments: res.data.messages,
                     author: res.data.user,
+                    tags: res.data.tags
                 });
 
                 console.log(res)
@@ -134,19 +135,29 @@ export default function ProfilePage() {
             {!loading && (
                 <div className="grid grid-cols-4 gap-5">
 
-                    <div className="col-span-2 max-lg:col-span-4 flex flex-col gap-10 border-r-2 border-main lg:h-[80vh] lg:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ">
+                    <div className="w-full col-span-2 max-lg:col-span-4 flex flex-col gap-10 border-r-2 border-main lg:h-[80vh] lg:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
 
                         {postData.source ? (
                             postData.source?.type.includes('image') ? (
                                 <img src={`${BASE_URL + postData.source.name}`} alt="" className="m-auto w-2/4" />
                             ) : (
-                                <p className=" h-100">Для этого файла предпросмотр недоступен</p>
+                                <p className="h-100">Для этого файла предпросмотр недоступен</p>
                             )
                         ) : (null)}
+
+                        <ul className="flex gap-2 flex-wrap">
+                                                {postData.tags.map(tag => (
+                                                    <li key={tag.id}
+                                                        className="bg-main/20 px-2 py-1 rounded-full text-xs ">
+                                                        {tag.name}
+                                                    </li>
+                                                ))}
+
+                                            </ul>
                         <h3 className="text-3xl">
                             {postData.title}
                         </h3>
-                        <p className="">
+                        <p className="max-w-[720px] break-words">
                             {postData.desc}
                         </p>
 

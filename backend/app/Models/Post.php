@@ -27,4 +27,9 @@ class Post extends Model
     {
         return $this->morphMany(Partaker::class, 'partakerable');
     }
+
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class, 'tag_post', 'post_id', 'tag_id');
+    }
 }

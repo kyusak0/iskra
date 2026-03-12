@@ -15,12 +15,14 @@ export default function Videos() {
     const vid = params.vid;
 
     const [video, setVideo] = useState()
+    const [videos, setVideos] = useState([])
 
     const getVideo = async () => {
         const res = await get(`/get-video/${vid}`);
-
         const el = res.data;
-        if (!el) return notFound
+
+        if (!el) return notFound;
+
         const newRecord = {
             id: vid,
             video: el.source,
@@ -31,17 +33,47 @@ export default function Videos() {
             desc: el.desc,
             tags: el.tags,
             views: el.views_count
-        }
+        };
 
-        console.log(newRecord)
-        setVideo(newRecord)
+        setVideo(newRecord);
 
-        console.log(video)
+        // После установки текущего видео, загружаем и фильтруем другие видео по тегам
+        await getVideos(el.tags);
+    }
+
+    const getVideos = async (currentVideoTags) => {
+        const res = await get(`/get-videos?page=1`);
+
+        // Получаем ID тегов текущего видео
+        const currentTagIds = currentVideoTags.map(tag => tag.id);
+
+        // Фильтруем видео, у которых есть хотя бы один совпадающий тег
+        const filteredVideos = res.data.data.filter(video =>
+            video.tags?.some(tag => currentTagIds.includes(tag.id))
+        );
+
+        // Преобразуем отфильтрованные видео в нужный формат
+        const videoRecords = filteredVideos.map(el => ({
+            id: el.id,
+            cover: el.cover.name,
+            duration: el.duration,
+            created_at: new Date(el.created_at).toDateString(),
+            author: el.source.user,
+            title: el.title,
+            tags: el.tags,
+            views: el.views_count
+        }));
+
+        setVideos(videoRecords);
+        setLastPage(res.data.last_page);
     }
 
     useEffect(() => {
-        getVideo()
-    }, [vid]);
+        getVideo();
+        getVideos();
+    }, []);
+
+
 
     const views = async () => {
         const video = document.querySelector('video');
@@ -74,7 +106,7 @@ export default function Videos() {
                         video.removeEventListener('timeupdate', onTimeUpdate);
                     } catch (error) {
                         console.error('Failed to record view:', error);
-                        viewRecorded = false; // Сбрасываем флаг при ошибке
+                        viewRecorded = false;
                     }
                 }
             });
@@ -85,7 +117,7 @@ export default function Videos() {
         <MainLayout>
             <div className="w-full flex flex-col max-lg:flex-col-reverse">
                 <div className="w-full grid grid-cols-3">
-                    <div className="col-span-2 border-r-2 border-main">
+                    <div className="col-span-2 border-r-2 border-main max-lg:col-span-3">
                         {video ? (
                             <div className="flex flex-col gap-2">
                                 <video
@@ -129,16 +161,65 @@ export default function Videos() {
                                 <p className="">
                                     Описание: {video.desc}
                                 </p>
+
+                                <div className="mt-auto">
+                                    Комментарии отключены
+                                </div>
                             </div>
                         ) : (null)}
 
                     </div>
 
-                    <div className="col-span-1 flex items-center">
-                        Комментарии отключены
+                    <div className="col-span-1 flex flex-col items-center gap-5 max-lg:hidden">
+                        {videos.length > 0 ? (<>
+                            <h3 className="px-2 py-1 border-2 border-main rounded-md uppercase">
+                                похожие видео
+                            </h3>
+                            <div className=" h-[80vh] overflow-auto">
+                                {videos.map(vid => (
+                                    <a href={`/videos/${vid.id}`} className="w-full border-2 border-main rounded-lg" key={vid.id}>
+                                        <div className="relative">
+                                            <img src={`${BASE_URL + vid.cover}`} alt="Ошибка загрузки изображения"
+                                                // onError={this.setAtribute('src', NoMedia.src)}
+                                                className="border-main w-full h-50 flex text-center" />
+                                            <p className="rounded-full px-2 py-1 bg-main/70 absolute bottom-2 right-2 text-white">
+                                                {vid.duration}
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col gap-2 p-2">
+                                            <p className="text-2xl">
+                                                {vid.title}
+                                            </p>
+
+                                            <p className="">
+                                                {vid.author.name}
+                                            </p>
+
+                                            <ul className="flex gap-2 flex-wrap">
+                                                {vid.tags.map(tag => (
+                                                    <li key={tag.id}
+                                                        className="bg-main/20 px-2 py-1 rounded-full text-xs ">
+                                                        {tag.name}
+                                                    </li>
+                                                ))}
+
+                                            </ul>
+
+                                            <div className="my-auto">
+                                                <p>
+                                                    Просмотры: {vid.views}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </a>
+
+                                ))}
+                            </div>
+                        </>
+                        ) : ("Ничего не найдено")}
                     </div>
                 </div>
             </div>
-        </MainLayout>
+        </MainLayout >
     );
 }
