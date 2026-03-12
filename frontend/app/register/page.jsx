@@ -90,7 +90,7 @@ export default function Register() {
             cancelAnimationFrame(raf);
         };
     }, []);
-    
+
     const [alert, setAlert] = useState();
 
     const handleSubmit = async (e) => {
@@ -118,7 +118,7 @@ export default function Register() {
         }
     };
 
-      
+
 
     return (
         <div id="reg-page">
@@ -168,12 +168,9 @@ export default function Register() {
                     </div>
                     <div className="col-span-3 flex flex-col justify-between items-center border-l-2 border-main">
                         <div className="">
-                            <a href="/">
-                                <img
-                                    src={logoImage}
-                                    alt="Lumina's logo"
-                                    className='logo'
-                                    title='На главную' />
+                            <a href="/" className={`uppercase transition-all duration-300 w-max flex font-bold p-5 gap-2 items-center`}>
+                                <img src="/logo.svg" alt="На главную" className="w-full h-10" />
+                                <span className={`transition-all duration-300 text-bg`}>искра</span>
                             </a>
                         </div><div className="flex flex-col justify-between items-center">
                             <p>Уже есть аккаунт? </p>

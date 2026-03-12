@@ -205,8 +205,8 @@ export default function Login() {
 
                 <div className='flex flex-col gap-5'>
                   <div className='flex'><a href="#">Забыли пароль?</a>
-                  <Link className='ml-3' href="/register">Зарегестрироваться</Link></div>
-                  
+                  </div>
+
                   <button
                     className="px-3 py-2 bg-main hover:opacity-80 rounded-md uppercase font-bold disabled:bg-gray-300"
                     type="submit"
@@ -268,18 +268,20 @@ export default function Login() {
             )}
           </div>
 
-          <div className="col-span-3 flex flex-col justify-around items-center border-l-2 border-main">
-            <div>
-              <a href="/">
-                <img
-                  src={logoImage.src}
-                  alt="На главную"
-                  className='logo'
-                  title='На главную'
-                />
+          <div className="col-span-3 flex flex-col justify-between items-center border-l-2 border-main">
+
+            <div className="">
+              <a href="/" className={`uppercase transition-all duration-300 w-max flex font-bold p-5 gap-2 items-center`}>
+                <img src="/logo.svg" alt="На главную" className="w-full h-10" />
+                <span className={`transition-all duration-300 text-bg`}>искра</span>
               </a>
             </div>
-          </div >
+            <div className="flex flex-col justify-between items-center">
+              <p>Ещё нет аккаунта? </p>
+              <p>
+                <a href="/register" className='text-main'>Зарегистрироваться</a></p>
+            </div>
+          </div>
 
         </div >
       </div >

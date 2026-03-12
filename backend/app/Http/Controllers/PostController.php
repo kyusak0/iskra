@@ -17,6 +17,17 @@ class PostController extends Controller
             'source_id' => 'nullable|exists:sources,id',
             'author_id' => 'required|exists:users,id',
             'type' => 'required'
+        ], [
+            'title.string' => 'Заголовок должен быть текстовой строкой',
+            
+            'desc.string' => 'Описание должно быть текстовой строкой',
+            
+            'source_id.exists' => 'Указанный источник не найден в базе данных',
+            
+            'author_id.required' => 'Необходимо указать автора',
+            'author_id.exists' => 'Указанный автор не зарегистрирован в системе',
+            
+            'type.required' => 'Необходимо указать тип записи'
         ]);
 
         $post = Post::create($data);
@@ -37,7 +48,7 @@ class PostController extends Controller
     }
 
     public function getPosts(){
-        $posts = Post::with(['user', 'source', 'messages', 'tags'])->get();
+        $posts = Post::query()->with(['user', 'source', 'messages', 'tags'])->paginate(3);
 
         return response()->json([
             'success' => true,
@@ -60,6 +71,7 @@ class PostController extends Controller
             'desc' => 'nullable|string',
             'source_id' => 'nullable|exists:sources,id',
             'cover_id' => 'nullable|exists:sources,id',
+            'author_id' => 'nullable|exists:users,id',
             'duration' => 'required'
         ]);
 
@@ -83,7 +95,7 @@ class PostController extends Controller
 
     public function getVideos(){
         $videos = Video::query()
-    ->with(['source.user', 'source', 'cover', 'messages', 'tags'])
+    ->with(['source.user', 'source', 'cover', 'messages', 'tags', 'user'])
     ->orderBy('views_count', 'desc')
     ->paginate(3);
 

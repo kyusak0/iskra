@@ -23,7 +23,7 @@ export default function Home() {
   const [content, setContent] = useState("");
 
   useEffect(() => {
-    getPost();
+    getPost(true);
     getTags();
   }, [])
 
@@ -82,40 +82,91 @@ export default function Home() {
   }
 
   const [alert, setAlert] = useState();
+      const [currentPage, setCurrentPage] = useState(1);
+    const [lastPage, setLastPage] = useState(0);
 
-  const getPost = async () => {
-
-    const res = await get('/get-posts')
-    setPosts([])
-
-    if (res.success) {
-      res.data.forEach(element => {
-        const newRecord = {
-          id: element.id,
-          title: element.title,
-          desc: element.desc,
-          user: element.user,
-          author_id: element.author_id,
-          author_name: element.user.name,
-
-          avatar: element.user.avatar,
-          tags: element.tags,
-
-          source: element.source?.name,
-          source_type: element.source?.type,
-          type: element.type,
-          comments: element?.messages?.length || 0,
-          created_at: new Date(element.created_at).toLocaleDateString()
-        }
-
-        setPosts(prev => [...prev, newRecord]);
-      });
-    } else {
-      setAlert({ content: 'На данный момент работа сервера приостановлена', type: 'err' })
-    }
-
-
+  const getPost = async (reset = false) => {
+  let curPage = reset ? 1 : currentPage;
+  
+  if (!reset && posts.length > 0) {
+    setCurrentPage(currentPage + 1);
+    curPage++;
   }
+
+  const res = await get(`/get-posts?page=${curPage}`);
+
+  if (reset) {
+    setPosts([]);
+  }
+
+  setLastPage(res.data.last_page);
+
+  if (res.success) {
+    const newPosts = res.data.data.map(element => ({
+      id: element.id,
+      title: element.title,
+      desc: element.desc,
+      user: element.user,
+      author_id: element.author_id,
+      author_name: element.user.name,
+      avatar: element.user.avatar,
+      tags: element.tags,
+      source: element.source?.name,
+      source_type: element.source?.type,
+      type: element.type,
+      comments: element?.messages?.length || 0,
+      created_at: new Date(element.created_at).toLocaleDateString()
+    }));
+
+    setPosts(prev => reset ? newPosts : [...prev, ...newPosts]);
+    
+    // Store original posts for filtering
+    setOriginalPosts(prev => reset ? newPosts : [...prev, ...newPosts]);
+  } else {
+    setAlert({ content: 'На данный момент работа сервера приостановлена', type: 'err' });
+  }
+}
+
+const search = async (e) => {
+  e.preventDefault();
+  const searchTerm = e.target?.searchPost?.value;
+  console.log(searchTerm);
+
+  if (searchTerm) {
+
+    
+    const filtered = originalPosts.filter(el =>
+      el.title?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setPosts(filtered);
+  } else {
+    // Reset to original posts and refresh if needed
+    setCurrentPage(1);
+    await getPost(true);
+  }
+}
+
+const selectTag = async (e) => {
+  e.preventDefault();
+  const tagId = e.target?.value;
+  console.log(tagId);
+
+  if (tagId && tagId != 0) {
+   
+    
+    const filtered = originalPosts.filter(video =>
+      video.tags?.some(tag => tag.id == tagId)
+    );
+    setPosts(filtered);
+  } else {
+    // Reset to original posts
+    setCurrentPage(1);
+    await getPost(true);
+  }
+}
+
+// Add state for original posts
+const [originalPosts, setOriginalPosts] = useState([]);
 
   const [comments, setComments] = useState([])
 
@@ -262,36 +313,6 @@ export default function Home() {
     ))
   }
 
-  const search = (e) => {
-    e.preventDefault();
-    console.log(e.target.searchPost?.value)
-
-    const searchTerm = e.target?.searchPost?.value?.toLowerCase();
-    if (searchTerm) {
-      setPosts(
-        posts.filter(el =>
-          el.title?.toLowerCase().includes(searchTerm)
-        )
-      );
-    } else {
-      getPost();
-    }
-  }
-
-  const selectTag = async(e) => {
-    e.preventDefault();
-    console.log(e.target?.value)
-    
-    const searchTerm = e.target?.value;
-    if (searchTerm && searchTerm != 0) {
-      const filteredPosts = posts.filter(video =>
-        video.tags?.some(tag => tag.id == searchTerm)
-      );
-      setPosts(filteredPosts);
-    } else {
-      getPost()
-    }
-  }
 
   const [selectedTags, setSelectedTags] = useState([]);
 
@@ -487,7 +508,10 @@ export default function Home() {
                   {post.created_at}
                 </p>
 
-                <ContextMenu
+                <a href={`/posts/${post.id}`}
+                className="w-max btn bg-main rounded-md">Перейти</a>
+
+                {/* <ContextMenu
                   id="more"
                   openTrigger={
                     <button className="border-2 border-main rounded-md py-1 px-2">...</button>
@@ -510,11 +534,13 @@ export default function Home() {
                       Поделиться
                     </button>
                   </div>
-                </ContextMenu>
+                </ContextMenu> */}
               </div>
               <div className="flex flex-col gap-2 mt-5">
                 {(post.source && post.source_type.includes('image/')) ? (
-                  <img src={`${BASE_URL}${post.source}`} alt="" className="m-auto h-50 z-index-[-1]" />
+                  <img src={`${BASE_URL}${post.source}` || 'no-media.png'} alt="" className="m-auto h-50 z-index-[-1] drop-shadow-xl" />
+                ) :(post.source && post.source_type.includes('video/')) ? (
+                  <video src={`${BASE_URL}${post.source}`} alt="" controls className="m-auto w-max h-[45vh] aspect-ratio-[1/1] z-index-[-1] drop-shadow-xl" />
                 ) : post.source ? (
                   // <button onClick={() => downloadFile(post.source)}>
                   //   Скачать прикрепленный файл
@@ -539,8 +565,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <a href={`/posts/${post.id}`}
-              className="w-full border-t-2 border-main py-2 px-3 mt-5 hover:bg-gray-200 rounded-b-md text-left">Перейти</a>
+              
               <Popup
                 id="comment"
                 openTrigger={
@@ -554,95 +579,101 @@ export default function Home() {
                   </h3>
                   <div
                     className="h-100 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                    {comments.map((message) => (
-                      <div className={`w-full mb-5 ${selectedMess == message.id ? 'shadow-lg shadow-main/50' : ''}`}
+                    {comments ? (
+                      comments.map((message) => (
+                        <div className={`w-full mb-5 ${selectedMess == message.id ? 'shadow-lg shadow-main/50' : ''}`}
 
-                        key={message.id} id={`${message.id}`}>
-                        <div className="flex flex-col items-start">
-                          <a
-                            href={`users/${message.user_id}`}
-                            className="grid grid-cols-3 grid-rows-2 "
-                          ><img alt="avaatr" className="rounded-full w-10 h-10 col-span-1 row-span-2 mr-5" />
-                            <p className="col-span-2 row-span-1">
-                              {message.user_name}
-                            </p>
-                            <p className="text-xs col-span-2 row-span-1">
-                              {message.created_at}
-                            </p>
-                          </a>
-                          <ContextMenu
-                            closing={closeContext}
-                            openTrigger={
-                              <>
+                          key={message.id} id={`${message.id}`}>
+                          <div className="flex flex-col items-start">
+                            <a
+                              href={`users/${message.user_id}`}
+                              className="grid grid-cols-3 grid-rows-2 "
+                            ><img alt="avaatr" className="rounded-full w-10 h-10 col-span-1 row-span-2 mr-5" />
+                              <p className="col-span-2 row-span-1">
+                                {message.user_name}
+                              </p>
+                              <p className="text-xs col-span-2 row-span-1">
+                                {message.created_at}
+                              </p>
+                            </a>
+                            <ContextMenu
+                              closing={closeContext}
+                              openTrigger={
+                                <>
 
-                                {message.answer_content ? (
-                                  <div className='w-full'>
-                                    <a
-                                      href={`#${message.answer_id}`}
-                                      onClick={() => {
-                                        setCloseContext(true);
-                                      }}
-                                      className={`w-full block border-l-2 rounded-l-md p-2 mb-2 ${message.author_id === user?.id
-                                        ? 'bg-main/20 border-main'
-                                        : 'bg-gray-200 border-gray-500'
-                                        }`}
-                                    >
-                                      {message.answer_content}
-                                    </a>
+                                  {message.answer_content ? (
+                                    <div className='w-full'>
+                                      <a
+                                        href={`#${message.answer_id}`}
+                                        onClick={() => {
+                                          setCloseContext(true);
+                                        }}
+                                        className={`w-full block border-l-2 rounded-l-md p-2 mb-2 ${message.author_id === user?.id
+                                          ? 'bg-main/20 border-main'
+                                          : 'bg-gray-200 border-gray-500'
+                                          }`}
+                                      >
+                                        {message.answer_content}
+                                      </a>
 
 
-                                  </div>
-                                ) : (null)}
+                                    </div>
+                                  ) : (null)}
 
-                                {message.source ? (
-                                  <img src={`${BASE_URL}${message.source}`} alt="" className="m-auto w-full h-80" />
-                                ) : (null)}
-                                <p>
-                                  {message.content}
-                                </p>
-                              </>
-                            }>
-                            <div className="flex flex-col gap-5">
-                              <div className="">
-                                <label htmlFor="">
-                                  Пожаловаться
-                                </label>
-                                <input type="text"
-                                  className="border-2 border-main rounded-md w-full"
-                                  placeholder="Причина..." />
-                                <button className='w-full text-left border-b-2 border-main'
-                                  onClick={() => {
-                                    setCloseContext(true)
-                                    setAnswer({
-                                      id: message.id,
-                                      content: message.content,
-                                    })
-                                  }}>Ответить</button>
-                                <button
-                                  className='w-full text-left border-b-2 border-main'
-                                  onClick={() => deleteMess(message)}
-                                >Удалить</button>
-                                <button className='w-full text-left border-b-2 border-main'
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(message.content);
-                                    setCloseContext(true)
-                                  }}
-                                >Копировать текст</button>
-                                <button className='w-full text-left border-b-2 border-main'>Закрепить</button>
+                                  {message.source ? (
+                                    <img src={`${BASE_URL}${message.source}`} alt="" className="m-auto w-full h-80" />
+                                  ) : (null)}
+                                  <p>
+                                    {message.content}
+                                  </p>
+                                </>
+                              }>
+                              <div className="flex flex-col gap-5">
+                                <div className="">
+                                  <label htmlFor="">
+                                    Пожаловаться
+                                  </label>
+                                  <input type="text"
+                                    className="border-2 border-main rounded-md w-full"
+                                    placeholder="Причина..." />
+                                  <button className='w-full text-left border-b-2 border-main'
+                                    onClick={() => {
+                                      setCloseContext(true)
+                                      setAnswer({
+                                        id: message.id,
+                                        content: message.content,
+                                      })
+                                    }}>Ответить</button>
+                                  <button
+                                    className='w-full text-left border-b-2 border-main'
+                                    onClick={() => deleteMess(message)}
+                                  >Удалить</button>
+                                  <button className='w-full text-left border-b-2 border-main'
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(message.content);
+                                      setCloseContext(true)
+                                    }}
+                                  >Копировать текст</button>
+                                  <button className='w-full text-left border-b-2 border-main'>Закрепить</button>
 
-                                <Popup
-                                  openTrigger={
-                                    <button className='w-full text-left border-b-2 border-main'>Переслать</button>
-                                  }>
-                                  123
-                                </Popup>
+                                  <Popup
+                                    openTrigger={
+                                      <button className='w-full text-left border-b-2 border-main'>Переслать</button>
+                                    }>
+                                    123
+                                  </Popup>
+                                </div>
                               </div>
-                            </div>
-                          </ContextMenu>
-                        </div>
+                            </ContextMenu>
+                          </div>
 
-                      </div>
-                    ))}
+                        </div>
+                      ))
+                    ) : (
+                      'Нет комментариев'
+                    )}
+
+
                   </div>
 
 
@@ -708,6 +739,12 @@ export default function Home() {
             </div>
           ))
           }
+
+          <button
+                    onClick={getPost}
+                    className={`btn rounded-md ${currentPage == lastPage ? 'hidden' : ''}`}>
+                    Показать еще
+                </button>
         </div>
       </div>
     </MainLayout >

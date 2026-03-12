@@ -33,6 +33,10 @@ class User extends Authenticatable
         return $this->hasMany(Post::class, 'author_id');
     }
 
+    public function videos(){
+        return $this->hasMany(Video::class, 'author_id');
+    }
+
     public function messages(){
         return $this->hasMany(Message::class, 'author_id');
     }

@@ -15,8 +15,9 @@ return new class extends Migration
             $table->id();
             $table->string('title');
             $table->text('desc')->nullable();
-            $table->foreignId('source_id')->constrained('sources')->cascadeOnDelete();
+            $table->foreignId('source_id')->nullable()->constrained('sources')->cascadeOnDelete();
             $table->foreignId('cover_id')->constrained('sources')->cascadeOnDelete();
+            $table->foreignId('author_id')->constrained('users')->cascadeOnDelete();
             $table->string('duration');
             $table->integer('views_count')->default(0);
             $table->timestamps();

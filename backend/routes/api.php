@@ -21,10 +21,20 @@ Route::get('/get-post/{id}', [PostController::class, 'getPostInfo']);
 Route::get('/get-videos', [PostController::class, 'getVideos']);
 Route::get('/get-video/{id}', [PostController::class, 'getVideoInfo']);
 Route::get('/view/{id}', [PostController::class, 'view']);
-
+Route::get('/check-upload-limits', function() {
+    return response()->json([
+        'upload_max_filesize' => ini_get('upload_max_filesize'),
+        'post_max_size' => ini_get('post_max_size'),
+        'max_execution_time' => ini_get('max_execution_time'),
+        'memory_limit' => ini_get('memory_limit'),
+        'max_file_uploads' => ini_get('max_file_uploads'),
+    ]);
+});
 Route::post('/get-messages/post/{id}', [DebateController::class, 'getMessages']);
 
 Route::get('/user-info/{id}', [AuthController::class, 'userInfo']);
+
+    Route::get('/get-tags', [InfoController::class, 'getTags']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -46,7 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/subscribe', [DebateController::class, 'subscribe']);
 
     Route::post('/create-tag', [InfoController::class, 'createTag']);
-    Route::get('/get-tags', [InfoController::class, 'getTags']);
+
     Route::post('/edit-tag', [InfoController::class, 'editTag']);
     Route::get('/delete-tag/{id}', [InfoController::class, 'deleteTag']);
 });

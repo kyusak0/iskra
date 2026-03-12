@@ -41,8 +41,9 @@ class AuthController extends Controller
         ]);
 
         if (!Auth::attempt($request->only('email', 'password'))) {
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
+            return response()->json([
+                'success' => false,
+                'message' => 123,
             ]);
         }
 
@@ -89,7 +90,7 @@ class AuthController extends Controller
 
     public function userInfo($id){
         $user = User::with([
-            'posts', 'posts.source'
+            'posts', 'posts.source', 'sources', 'videos'
         ])->findOrFail($id);
         if($user){
             return response()->json([

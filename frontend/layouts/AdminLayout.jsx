@@ -32,20 +32,20 @@ export default function AdminLayout({ children, alertMess, alertType }) {
 
                 <ul className="h-full flex flex-col gap-10 justify-center ">
                     <li className="w-full">
-                        <a href="/admin/tags" className={`p-5 ${link.includes('/tags') ? 'rounded-full bg-bg' : ''}`}>
-                            <span className="text-4xl">#</span>
+                        <a href="/admin/tags" className={`p-5 ${link.includes('/tags') ? 'rounded-full bg-bg' : ''} flex gap-5 items-center uppercase font-bold`}>
+                            <span><img src="/tags.svg" alt="" className="w-10 h-10" /></span>
                             <span className={`${sidebarIsOpen ? '' : 'hidden'}`}> теги </span>
                         </a>
                     </li>
                     <li className="w-full">
-                        <a href="/admin/reports" className={`p-5 ${link.includes('/reports') ? 'rounded-full bg-bg' : ''}`}>
-                            <span className="text-2xl">📑</span>
+                        <a href="/admin/reports" className={`p-5 ${link.includes('/reports') ? 'rounded-full bg-bg' : ''} flex gap-5 items-center uppercase font-bold`}>
+                            <span><img src="/docs.svg" alt="" className="w-10 h-10" /></span>
                             <span className={`${sidebarIsOpen ? '' : 'hidden'}`}> жалобы </span>
                         </a>
                     </li>
                     <li className="w-full">
-                        <a href="/admin/users" className={`p-5 ${link.includes('/users') ? 'rounded-full bg-bg' : ''}`}>
-                            <span className="text-2xl">👤</span>
+                        <a href="/admin/users" className={`p-5 ${link.includes('/users') ? 'rounded-full bg-bg' : ''} flex gap-5 items-center uppercase font-bold`}>
+                            <span><img src="/profile.svg" alt="" className="w-10 h-10" /></span>
                             <span className={`${sidebarIsOpen ? '' : 'hidden'}`}> пользователи </span>
                         </a>
                     </li>

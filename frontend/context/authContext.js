@@ -158,6 +158,10 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             localStorage.removeItem('token');
             setUser(null);
+            setAlert({
+                content: error.response?.data?.message || 'Ошибка проверки пользователя',
+                type: 'err'
+            });
         } finally {
             setLoading(false);
         }
@@ -171,17 +175,26 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('token', token);
             setUser(user);
             router.push('/dashboard');
-            if(!response.success){
-                return { success: false };
-            }
+
+            setAlert({
+                content: 'Регистрация успешно завершена',
+                type: 'success'
+            });
+
             return { success: true };
         } catch (error) {
+            const errorMessage = error.response?.data?.errors ||
+                error.response?.data?.message ||
+                'Ошибка регистрации';
+
+            setAlert({
+                content: errorMessage,
+                type: 'err'
+            });
+
             return {
                 success: false,
-                error:
-                    error.response?.data?.errors ||
-                    error.response?.data?.message ||
-                    'Registration failed'
+                error: errorMessage
             };
         }
     };
@@ -193,18 +206,28 @@ export const AuthProvider = ({ children }) => {
 
             // Если сервер требует 2FA — пока НЕ логиним окончательно
             if (data.requires_2fa) {
+                setAlert({
+                    content: 'Требуется подтверждение 2FA',
+                    type: 'success'
+                });
+
                 return {
-                  success: true,
-                  requires_2fa: true,
-                  login_token: data.login_token,
+                    success: true,
+                    requires_2fa: true,
+                    login_token: data.login_token,
                 };
-              }
+            }
 
             // Обычный вход без 2FA
             if (data.token && data.user) {
                 localStorage.setItem('token', data.token);
                 setUser(data.user);
-                router.push('/dashboard');
+                router.push(`/users/${data.user.id}`);
+
+                setAlert({
+                    content: 'Вход выполнен успешно',
+                    type: 'success'
+                });
 
                 return {
                     success: true,
@@ -212,59 +235,98 @@ export const AuthProvider = ({ children }) => {
                 };
             }
 
+            const errorMessage = 'Некорректные данные';
+            setAlert({
+                content: errorMessage,
+                type: 'err'
+            });
+
             return {
                 success: false,
-                error: 'Некорректный ответ сервера'
+                error: errorMessage
             };
         } catch (error) {
+            const errorMessage = error.response?.data?.errors ||
+                error.response?.data?.message ||
+                'Ошибка входа';
+
+            setAlert({
+                content: errorMessage,
+                type: 'err'
+            });
+
             return {
                 success: false,
-                error:
-                    error.response?.data?.errors ||
-                    error.response?.data?.message ||
-                    'Login failed'
+                error: errorMessage
             };
         }
     };
 
     const verify2FA = async ({ code, loginToken }) => {
         try {
-          const response = await axios.post(
-            '/2fa/verify-login',
-            { code },
-            {
-              headers: {
-                Authorization: `Bearer ${loginToken}`,
-              },
+            const response = await axios.post(
+                '/2fa/verify-login',
+                { code },
+                {
+                    headers: {
+                        Authorization: `Bearer ${loginToken}`,
+                    },
+                }
+            );
+
+            const data = response.data;
+
+            if (data.token && data.user) {
+                localStorage.setItem('token', data.token);
+                setUser(data.user);
+                router.push('/');
+
+                setAlert({
+                    content: '2FA подтвержден успешно',
+                    type: 'success'
+                });
+
+                return { success: true };
             }
-          );
-      
-          const data = response.data;
-      
-          if (data.token && data.user) {
-            localStorage.setItem('token', data.token);
-            setUser(data.user);
-            router.push('/');
-            return { success: true };
-          }
-      
-          return {
-            success: false,
-            error: 'Некорректный ответ сервера после проверки 2FA'
-          };
+
+            const errorMessage = 'Некорректный ответ сервера после проверки 2FA';
+            setAlert({
+                content: errorMessage,
+                type: 'err'
+            });
+
+            return {
+                success: false,
+                error: errorMessage
+            };
         } catch (error) {
-          return {
-            success: false,
-            error: error.response?.data?.message || 'Неверный код 2FA'
-          };
+            const errorMessage = error.response?.data?.message || 'Неверный код 2FA';
+
+            setAlert({
+                content: errorMessage,
+                type: 'err'
+            });
+
+            return {
+                success: false,
+                error: errorMessage
+            };
         }
-      };
+    };
 
     const logout = async () => {
         try {
             await axios.post('/logout');
+            setAlert({
+                content: 'Выход выполнен успешно',
+                type: 'success'
+            });
         } catch (error) {
             console.error('Logout error:', error);
+            setAlert({
+                content: 'Ошибка при выходе из системы',
+                type: 'err'
+            });
         } finally {
             localStorage.removeItem('token');
             setUser(null);
@@ -274,33 +336,60 @@ export const AuthProvider = ({ children }) => {
 
     // Для JSON-запросов (логин, 2FA, обычные формы)
     const post = async (link, data) => {
-                try {
-                    const response = await axios.post(link, data, {
-                        headers: {
-                            'Content-Type': 'multipart/form-data'
-                        }
-                    });
-                    return response.data;
-                } catch (error) {
-                    return {
-                        success: false,
-                        error: error.response?.data?.errors || error.response?.data?.message || 'failed of ' + link
-                    };
+        try {
+            const response = await axios.post(link, data, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
                 }
+            });
+
+            if (response.data.success) {
+                setAlert({
+                    content: 'Операция выполнена успешно',
+                    type: 'success'
+                });
+            } else {
+                setAlert({
+                    content: response.data.message || 'Операция не удалась',
+                    type: 'err'
+                });
             }
-        
+
+            return response.data;
+        } catch (error) {
+            const errorMessage = error.response?.data?.errors ||
+                error.response?.data?.message ||
+                `Ошибка при выполнении запроса к ${link}`;
+
+            setAlert({
+                content: errorMessage,
+                type: 'err'
+            });
+
+            return {
+                success: false,
+                error: errorMessage
+            };
+        }
+    };
 
     const get = async (link) => {
         try {
             const response = await axios.get(link);
             return response.data;
         } catch (error) {
+            const errorMessage = error.response?.data?.errors ||
+                error.response?.data?.message ||
+                `Ошибка при выполнении запроса к ${link}`;
+
+            setAlert({
+                content: errorMessage,
+                type: 'err'
+            });
+
             return {
                 success: false,
-                error:
-                    error.response?.data?.errors ||
-                    error.response?.data?.message ||
-                    'failed of ' + link
+                error: errorMessage
             };
         }
     };
@@ -317,9 +406,20 @@ export const AuthProvider = ({ children }) => {
         get,
     };
 
+    const [alert, setAlert] = useState()
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-main"></div>
+            </div>
+        );
+    }
+
     return (
         <AuthContext.Provider value={value}>
             {children}
+            <Alert id={Date.now()} content={alert?.content} type={alert?.type} />
         </AuthContext.Provider>
     );
 };

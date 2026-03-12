@@ -51,7 +51,7 @@ export default function Alert({id, content, type }) {
     };
 
     return (
-        <div className={`${openedAlert ? 'fixed' : 'hidden'} border-2
+        <div className={`${openedAlert ? 'fixed' : 'hidden'} border-2 z-4
         ${type == 'warn' ? 'border-yellow-500' : type == 'err' ? 'border-red-500' : 'border-main'}
         text-left top-20 right-10 w-1/5 bg-bg rounded-md p-2 `}>
             <div className="relative">

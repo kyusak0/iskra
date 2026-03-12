@@ -18,6 +18,7 @@ export default function AdminPanel() {
         e.preventDefault()
         const res = await post('/create-tag', tagData)
         console.log(res)
+        setTagData({name: ''})
     }
 
     const editTag = async (e, tagId) => {
