@@ -16,12 +16,6 @@ export default function Chat({ chat_id }) {
     if (chat_id && chat_id !== cid) {
         cid = chat_id;
     }
-    const remoteAudioRef = useRef(null);
-   
-    const [incomingCall, setIncomingCall] = useState(null);
-    const [isMuted, setIsMuted] = useState(false);
-    const [callTime, setCallTime] = useState(0);
-
 
     const timerRef = useRef(null);
     const [chatId, setChatId] = useState(cid);
