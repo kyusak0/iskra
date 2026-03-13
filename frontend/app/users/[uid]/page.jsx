@@ -25,12 +25,13 @@ export default function ProfilePage() {
     const [disableLoading, setDisableLoading] = useState(false);
     const [disableError, setDisableError] = useState('');
     const [activeTab, setActiveTab] = useState('posts'); // 'posts', 'videos', 'reposts'
+    const [isCreatingChat, setIsCreatingChat] = useState(false);
 
     const { user, get, post, loading } = useAuth()
 
     useEffect(() => {
         getUserInfo(params.uid);
-    }, []);
+    }, [params.uid]);
 
     const getUserInfo = async (userId) => {
         try {
@@ -38,6 +39,7 @@ export default function ProfilePage() {
             console.log(res)
             if (res.success) {
                 setUserData({
+                    id: res.data.id,
                     name: res.data.name,
                     avatar: res.data.avatar,
                     posts: res.data.posts,
@@ -55,6 +57,41 @@ export default function ProfilePage() {
             console.log(error.message)
         }
     }
+
+    const handleCreatePersonalChat = async () => {
+    if (!user || !userData) return;
+    
+    setIsCreatingChat(true);
+    try {
+        // Отправляем запрос на создание/получение чата
+        const res = await post('/get-or-create-personal-chat', {
+            user_id: user.id,
+            other_user_id: userData.id,
+        });
+
+        if (res.success && res.data?.id) {
+            // Переходим в чат (существующий или новый)
+            router.push(`/chats/${res.data.id}`);
+            
+            // Можно показать уведомление
+            if (res.data.isNew) {
+                alert('Новый чат создан');
+            } else {
+                // Просто переходим в существующий чат без уведомления
+                console.log('Переход в существующий чат');
+            }
+        } else {
+            console.error('Failed to get/create chat');
+            alert('Не удалось создать чат');
+        }
+    } catch (error) {
+        console.error('Error creating chat:', error);
+        alert('Ошибка при создании чата');
+    } finally {
+        setIsCreatingChat(false);
+    }
+};
+
     const handleDisableChange = (e) => {
         const { name, value } = e.target;
 
@@ -278,6 +315,9 @@ export default function ProfilePage() {
         ));
     };
 
+    // Проверяем, является ли просматриваемый профиль профилем текущего пользователя
+    const isOwnProfile = user && String(user.id) === String(params.uid);
+
     return (
         <MainLayout>
             <div className="flex pb-2 flex-col items-center gap-5 border-b-2 border-main">
@@ -333,7 +373,7 @@ export default function ProfilePage() {
                 </h2>
 
                 <div className="grid grid-cols-2 gap-5 text-center">
-                    {user && String(user.id) === String(params.uid) && (
+                    {isOwnProfile ? (
                         <div className="col-span-2 flex flex-col gap-3 items-center">
                             {!userData?.google2fa_enabled ? (
                                 <button
@@ -413,6 +453,22 @@ export default function ProfilePage() {
                                 </>
                             )}
                         </div>
+                    ) : (
+                        // Кнопка "Написать сообщение" для чужих профилей
+                        user && (
+                            <div className="col-span-2 flex justify-center">
+                                <button
+                                    onClick={handleCreatePersonalChat}
+                                    disabled={isCreatingChat}
+                                    className="px-6 py-2 bg-main text-white font-bold rounded-md hover:bg-main-dark transition-colors disabled:bg-gray-300 flex items-center gap-2"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
+                                    {isCreatingChat ? 'Создание чата...' : 'Написать сообщение'}
+                                </button>
+                            </div>
+                        )
                     )}
                     <div className="col-span-1">подписчиков</div>
                     <div className="col-span-1">подписки</div>

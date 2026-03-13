@@ -33,7 +33,7 @@ class TwoFactorController extends Controller
         );
 
         return response()->json([
-            'secret' => $secret, // можно НЕ отдавать на фронт, если не хочешь
+            'secret' => $secret,
             'otpauth_url' => $otpauthUrl,
             'enabled' => (bool) $user->google2fa_enabled,
         ]);

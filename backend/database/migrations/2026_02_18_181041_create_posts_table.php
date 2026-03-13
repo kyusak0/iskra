@@ -18,6 +18,7 @@ return new class extends Migration
             $table->foreignId('source_id')->nullable()->constrained('sources')->cascadeOnDelete();
             $table->foreignId('author_id')->constrained('users')->cascadeOnDelete();
             $table->enum('type', ['public','private','friends_only'])->default('public');
+            $table->string('url');
             $table->timestamps();
         });
     }

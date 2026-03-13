@@ -261,6 +261,7 @@ export default function Videos() {
 
     const selectTag = (e) => {
         e.preventDefault();
+        setVideos(videosOrig);
         console.log(e.target?.value);
 
         const searchTerm = e.target?.value;
@@ -277,7 +278,7 @@ export default function Videos() {
     return (
         <MainLayout alertMess={alert?.content} alertType={alert?.type}>
             <div className="w-full flex flex-col max-lg:flex-col-reverse">
-                <div className="w-full flex justify-evenly gap-5 lg:mt-10 max-lg:pt-5 lg:pb-5 lg:border-b-2 lg:border-main">
+                <div className="w-full flex max-lg:flex-wrap justify-evenly gap-5 lg:mt-10 max-lg:pt-5 lg:pb-5 lg:border-b-2 lg:border-main">
                     <select name="" id=""
                         onChange={selectTag}
                         className="px-3 py-2 border-2 border-main max-lg:rounded-md rounded-md" >
@@ -449,7 +450,7 @@ export default function Videos() {
                 <div className="grid grid-cols-3 my-5 max-h-[65vh] overflow-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] gap-10">
                     {videos.length > 0 ? (
                         videos.map(vid => (
-                            <a href={`/videos/${vid.id}`} className="col-span-1 border-2 border-main rounded-lg hover:shadow-lg transition-shadow" key={vid.id}>
+                            <a href={`/videos/${vid.id}`} className="col-span-1 max-lg:col-span-3 border-2 border-main rounded-lg hover:shadow-lg transition-shadow" key={vid.id}>
                                 <div className="relative">
                                     <img 
                                         src={`${BASE_URL + vid.cover}`} 

@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreignId('source_id')->nullable()->constrained('sources')->cascadeOnDelete();
             $table->foreignId('author_id')->constrained('users')->cascadeOnDelete();
             $table->foreignId('answer_id')->nullable()->constrained('messages')->cascadeOnDelete();
+            $table->boolean('is_pinned')->default(false);
 
             $table->enum('type', ['comment', 'chat'])->default('comment');
             $table->morphs('messageable');

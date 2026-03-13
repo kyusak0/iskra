@@ -15,9 +15,10 @@ return new class extends Migration
             $table->id();
             $table->string('title');
             $table->string('bio')->nullable();
-            $table->foreignId('owner_id')->constrained('users');
-            $table->enum('type', ['public','private'])->default('public');
+            $table->foreignId('owner_id')->constrained('users')->cascadeOnDelete();
+            $table->enum('type', ['public','private','personal'])->default('public');
             $table->string('avatar')->nullable();
+            $table->string('url')->nullable();
             $table->timestamps();
         });
     }

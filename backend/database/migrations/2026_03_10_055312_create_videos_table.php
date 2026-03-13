@@ -20,6 +20,7 @@ return new class extends Migration
             $table->foreignId('author_id')->constrained('users')->cascadeOnDelete();
             $table->string('duration');
             $table->integer('views_count')->default(0);
+            $table->string('url');
             $table->timestamps();
         });
     }

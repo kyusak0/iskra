@@ -47,11 +47,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/load-file', [SourceController::class, 'loadFile']);
 
     Route::post('/create-chat', [DebateController::class, 'createChat']);
+    Route::post('/get-or-create-personal-chat', [DebateController::class, 'createChatPersonal']);
+    
     Route::post('/send-message/post', [DebateController::class, 'sendMessage']);
     Route::post('/send-message/chat', [DebateController::class, 'sendMessage']);
     Route::post('/delete-message', [DebateController::class, 'deleteMessage']);
     Route::get('/get-chats', [DebateController::class, 'getChats']);
     Route::get('/get-chat-info/{id}', [DebateController::class, 'getChatInfo']);
+    Route::get('/get-chat-by-url/{url}', [DebateController::class, 'getChatUrl']);
+    Route::post('/pin-message', [DebateController::class, 'pinMess']);
+
     Route::post('/get-messages/chat/{id}', [DebateController::class, 'getMessages']);
     Route::post('/subscribe', [DebateController::class, 'subscribe']);
 

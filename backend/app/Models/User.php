@@ -45,6 +45,14 @@ class User extends Authenticatable
         return $this->hasMany(Chat::class, 'owner_id');
     }
 
+    public function chats(){
+        return $this->belongsToMany(Chat::class, 'chat_user', 'user_id', 'chat_id');
+    }
+
+    public function subs(){
+        return $this->belongsToMany(User::class, 'subs', 'user_id', 'creator_id');
+    }
+
     /**
      * The attributes that should be hidden for serialization.
      *

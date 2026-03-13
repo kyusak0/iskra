@@ -16,7 +16,7 @@ export default function ContextMenu({
         setContext({
             visible: true,
             x: event.clientX - 150,
-            y: event.clientY + 20,
+            y: event.clientY - 100,
         });
     };
 

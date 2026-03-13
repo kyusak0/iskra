@@ -16,7 +16,9 @@ class PostController extends Controller
             'desc' => 'nullable|string',
             'source_id' => 'nullable|exists:sources,id',
             'author_id' => 'required|exists:users,id',
-            'type' => 'required'
+            'type' => 'required',
+            'url' => 'required|string'
+
         ], [
             'title.string' => 'Заголовок должен быть текстовой строкой',
             
@@ -72,7 +74,8 @@ class PostController extends Controller
             'source_id' => 'nullable|exists:sources,id',
             'cover_id' => 'nullable|exists:sources,id',
             'author_id' => 'nullable|exists:users,id',
-            'duration' => 'required'
+            'duration' => 'required',
+            'url' => 'required|string'
         ]);
 
         $video = Video::create($data);

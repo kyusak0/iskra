@@ -8,23 +8,53 @@ use Illuminate\Support\Facades\Route;
 
 use App\Models\Chat;
 use App\Models\Post;
-use App\Models\Debate;
 use App\Models\Message;
 
 class DebateController extends Controller
 {
     public function getChats(){
-        $chats = Chat::with(['members', 'members.user', 'messages', 'messages.source', 'owner'])->get();
+        $chats = Chat::with(['members', 'messages', 'messages.source', 'owner'])->get();
 
         return response()->json([
+            'success' => true,
             'data' => $chats,
         ]);
     }
 
     public function getChatInfo($id){
-        $chat = Chat::with(['members', 'members.user', 'messages', 'owner'])->findOrFail($id);
+        $chat = Chat::where('id', $id)->with(['members', 'messages', 'owner'])->first();
+    
+    if (!$chat) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Chat not found'
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $chat,
+    ]);
+
+    }
+
+    public function pinMess(Request $request) {
+        $mess = Message::findOrFail($request->message_id);
+        $mess->update([
+            'is_pinned' => $request->is_pinned
+        ]);
 
         return response()->json([
+            'success' => true,
+            'data' => $mess,
+        ]);
+    }
+    
+    public function getChatUrl($url){
+        $chat = Chat::where('url', $url)->with(['members', 'messages', 'messages.user','messages.source', 'owner'])->first();
+
+        return response()->json([
+            'success' => true,
             'data' => $chat,
         ]);
     }
@@ -36,18 +66,56 @@ class DebateController extends Controller
             'bio' => $request->bio,
             'owner_id' => $request->owner_id,
             'avatar' => $request->avatar,
-            'type' => $request->type
+            'type' => $request->type,
+            'url' => $request->url
+
         ]);
 
-        $chat->members()->create([
-            'user_id' => $request->owner_id,
-            'type' => 'member'
-        ]);
+        $chat->members()->attach($request->owner_id);
 
         if(!empty($chat)){
             return response()->json([
                 'success' => true,
                 'message' => 'Чат создан успешно'
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'failed'
+        ]);
+    }
+
+    public function CreateChatPersonal(Request $request){
+        $existing_chat = Chat::where('type', 'personal')
+    ->whereHas('members', function ($query) use ($request) {
+        $query->where('users.id', $request->user_id); // Явно указываем таблицу
+    })
+    ->whereHas('members', function ($query) use ($request) {
+        $query->where('users.id', $request->other_user_id); // Явно указываем таблицу
+    })
+    ->first();
+
+        if ($existing_chat) {
+            return response()->json([
+                'success' => true,
+                'data' => $existing_chat
+            ]);
+        }
+
+        $chat = Chat::create([
+            'title' => $request->title,
+            'owner_id' => $request->user_id,
+            'type' => 'personal',
+        ]);
+
+        $chat->members()->attach([$request->user_id, $request->other_user_id]);
+
+        if (!empty($chat)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Чат создан успешно',
+                'data' => $chat
             ]);
         }
 
@@ -123,11 +191,9 @@ class DebateController extends Controller
     }
 
     public function subscribe(Request $request){
-        $chat = Chat::find($request->chat_id);
-        $chat->members()->create([
-            'user_id' => $request->user_id,
-            'type' => 'member'
-        ]);
+        $chat = Chat::findOrFail($request->chat_id);
+
+        $chat->members()->attach($request->user_id);
 
         return response()->json([
             'success' => true,

@@ -3,7 +3,7 @@
 import { ReactNode, useState } from "react"
 
 export default function Popup({
-    children, openTrigger, sidebar
+    children, openTrigger
 }) {
     const [open, setOpen] = useState(false);
     const openPopup = () => setOpen(true);

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Message extends Model
 {
     protected $fillable = [
-        'content','source_id','author_id','answer_id','type','messageable'
+        'content','source_id','author_id','answer_id','type','messageable','is_pinned'
     ];
 
     public function source(){
