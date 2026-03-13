@@ -46,11 +46,13 @@ class DebateController extends Controller
 
         if(!empty($chat)){
             return response()->json([
-                'message' => 'success'
+                'success' => true,
+                'message' => 'Чат создан успешно'
             ]);
         }
 
         return response()->json([
+            'success' => false,
             'message' => 'failed'
         ]);
     }
@@ -80,12 +82,14 @@ class DebateController extends Controller
         $mess = Message::with(['user', 'message'])
         ->find($mess->id);
             return response()->json([
+                'success' => true,
                 'data' => $mess,
                 'message' => 'success'
             ]);
         }
 
         return response()->json([
+            'success' => false,
             'message' => 'failed'
         ]);
     }
@@ -106,12 +110,16 @@ class DebateController extends Controller
         }
 
         return response()->json([
+            'success' => true,
             'data' => $messages,
         ]);
     }   
 
     public function deleteMessage(Request $request){
         Message::findOrFail($request->message_id)->delete();
+        return response()->json([
+            'success' => true,
+        ]);
     }
 
     public function subscribe(Request $request){

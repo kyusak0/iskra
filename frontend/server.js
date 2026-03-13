@@ -1,6 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws';
 
-const wss = new WebSocketServer({ port: 5001 });
+const wss = new WebSocketServer({ port: 5000 });
 
 // Хранилище клиентов с информацией о чатах
 const clients = new Map(); // key: ws, value: { chatId: number, userId: number }

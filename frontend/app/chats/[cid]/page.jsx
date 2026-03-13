@@ -214,7 +214,7 @@ export default function Chat({ chat_id }) {
 
 
     useEffect(() => {
-        wsRef.current = new WebSocket('ws://localhost:5001');
+        wsRef.current = new WebSocket('ws://localhost:5000');
 
         wsRef.current.onopen = () => {
             setIsConnected(true);
@@ -655,7 +655,7 @@ export default function Chat({ chat_id }) {
 
     return (
         <div className="w-full">
-            <audio ref={ringtoneRef} src="/ringtone.mp3" loop />
+            {/* <audio ref={ringtoneRef} src="/ringtone.mp3" loop /> */}
             {incomingCall && (
                 <div className="fixed inset-0 flex items-center justify-center bg-black/50">
 

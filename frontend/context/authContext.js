@@ -346,11 +346,11 @@ export const AuthProvider = ({ children }) => {
             if (response.data.success) {
                 setAlert({
                     content: 'Операция выполнена успешно',
-                    type: 'success'
+                    type: ''
                 });
             } else {
                 setAlert({
-                    content: response.data.message || 'Операция не удалась',
+                    content: response.data.message || 'Операция не удалась'+link,
                     type: 'err'
                 });
             }
