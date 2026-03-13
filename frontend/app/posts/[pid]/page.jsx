@@ -136,66 +136,77 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-4 gap-5">
 
                     <div className="col-span-2 max-lg:col-span-4 flex flex-col gap-10 border-r-2 border-main lg:h-[80vh] lg:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-y-style:none] [scrollbar-width:none]">
-  <div className="w-full flex flex-col gap-10">
-    {/* Media section */}
-    {postData?.source ? (
-      postData.source?.type?.includes('image') ? (
-        <img 
-          src={`${BASE_URL}${postData.source.name}`} 
-          alt={postData.title || 'Post image'} 
-          className="m-auto w-2/4 object-contain max-h-96"
-          loading="lazy"
-        />
-      ) : postData.source?.type?.includes('video') ? (
-        <video 
-          src={`${BASE_URL}${postData.source.name}`} 
-          controls 
-          className="m-auto w-2/4 max-h-96"
-        />
-      ) : (
-        <div className="h-40 flex items-center justify-center bg-gray-100 rounded-lg">
-          <p className="text-gray-500">
-            {postData.source?.type 
-              ? `Предпросмотр для файлов типа ${postData.source.type} недоступен` 
-              : 'Для этого файла предпросмотр недоступен'}
-          </p>
-        </div>
-      )
-    ) : (
-      <div className="h-40 flex items-center justify-center bg-gray-100 rounded-lg">
-        <p className="text-gray-500">Нет медиафайлов</p>
-      </div>
-    )}
+                        <div className="w-full flex flex-col gap-10">
+                            {/* Media section */}
+                            {postData?.source ? (
+                                postData.source?.type?.includes('image') ? (
 
-    {/* Tags section */}
-    {postData?.tags?.length > 0 && (
-      <ul className="flex gap-2 flex-wrap">
-        {postData.tags.map(tag => (
-          <li 
-            key={tag.id}
-            className="bg-main/20 px-3 py-1.5 rounded-full text-xs hover:bg-main/30 transition-colors cursor-default"
-          >
-            #{tag.name}
-          </li>
-        ))}
-      </ul>
-    )}
 
-    {/* Title */}
-    {postData?.title && (
-      <h3 className="text-3xl font-semibold leading-tight">
-        {postData.title}
-      </h3>
-    )}
+                                    <Popup
+                                        openTrigger={
+                                            <img
+                                                src={`${BASE_URL}${postData.source.name}`}
+                                                alt={postData.title || 'Post image'}
+                                                className="m-auto w-2/4 object-contain max-h-96"
+                                                loading="lazy"
+                                            />}>
+                                        <img
+                                            src={`${BASE_URL}${postData.source.name}`}
+                                            alt={postData.title || 'Post image'}
+                                            className="m-auto mt-5 fit-contain hover:scale-[1.2]"
+                                            loading="lazy"
+                                        />
+                                    </Popup>
+                                ) : postData.source?.type?.includes('video') ? (
+                                    <video
+                                        src={`${BASE_URL}${postData.source.name}`}
+                                        controls
+                                        className="m-auto w-2/4 max-h-96"
+                                    />
+                                ) : (
+                                    <div className="h-40 flex items-center justify-center bg-gray-100 rounded-lg">
+                                        <p className="text-gray-500">
+                                            {postData.source?.type
+                                                ? `Предпросмотр для файлов типа ${postData.source.type} недоступен`
+                                                : 'Для этого файла предпросмотр недоступен'}
+                                        </p>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="h-40 flex items-center justify-center bg-gray-100 rounded-lg">
+                                    <p className="text-gray-500">Нет медиафайлов</p>
+                                </div>
+                            )}
 
-    {/* Description */}
-    {postData?.desc && (
-      <p className="text-gray-700 leading-relaxed break-words whitespace-pre-wrap">
-        {postData.desc}
-      </p>
-    )}
-  </div>
-</div>
+                            {/* Tags section */}
+                            {postData?.tags?.length > 0 && (
+                                <ul className="flex gap-2 flex-wrap">
+                                    {postData.tags.map(tag => (
+                                        <li
+                                            key={tag.id}
+                                            className="bg-main/20 px-3 py-1.5 rounded-full text-xs hover:bg-main/30 transition-colors cursor-default"
+                                        >
+                                            #{tag.name}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+
+                            {/* Title */}
+                            {postData?.title && (
+                                <h3 className="text-3xl font-semibold leading-tight">
+                                    {postData.title}
+                                </h3>
+                            )}
+
+                            {/* Description */}
+                            {postData?.desc && (
+                                <p className="text-gray-700 leading-relaxed break-words whitespace-pre-wrap">
+                                    {postData.desc}
+                                </p>
+                            )}
+                        </div>
+                    </div>
                     <div className="flex flex-col col-span-2 max-lg:col-span-4">
                         <h3 className="text-xl mb-5">
                             Комментарии
@@ -209,9 +220,15 @@ export default function ProfilePage() {
                                     <div className="flex flex-col items-start">
                                         <a
                                             href={`users/${message.user.id}`}
-                                            className="grid grid-cols-3 grid-rows-2 "
-                                        ><img alt="avaatr" className="rounded-full w-10 h-10 col-span-1 row-span-2 mr-5" />
-                                            <p className="col-span-2 row-span-1">
+                                            className="grid grid-cols-3 grid-rows-2 flex items-center"
+                                        > {message.user.avatar ? (
+                                            <img href={`${BASE_URL + message.user?.avatar}`} alt="avaatr" className="rounded-full w-10 h-10 col-span-1 row-span-2 mr-5" />
+
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full bg-main text-2xl font-bold text-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                                                {message.user.name[0]}
+                                            </div>
+                                        )}   <p className="col-span-2 row-span-1">
                                                 {message.user.name}
                                             </p>
                                             <p className="text-xs col-span-2 row-span-1">
