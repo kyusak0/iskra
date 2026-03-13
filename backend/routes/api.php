@@ -71,6 +71,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route::post('/2fa/verify-login', [TwoFactorController::class, 'verifyLoginCode']);
 });
 
+// Route::middleware(['auth:sanctum', 'abilities:has2fa'])-group(function (){
+    
+// })
+
 // Route::middleware(['auth:sanctum', '2fa.verified'])->group(function () {
 //     Route::get('/user', fn (Request $request) => $request->user());
 //     // все остальные защищённые роуты

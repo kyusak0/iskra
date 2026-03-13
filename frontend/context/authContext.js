@@ -174,7 +174,7 @@ export const AuthProvider = ({ children }) => {
 
             localStorage.setItem('token', token);
             setUser(user);
-            router.push('/dashboard');
+            router.push(`/users/${data.user.id}`);
 
             setAlert({
                 content: 'Регистрация успешно завершена',
