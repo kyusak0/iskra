@@ -243,7 +243,6 @@ export default function ProfilePage() {
             });
         }
 
-        // Отображение постов
         return content.map(post => (
             <div className="col-span-1 max-lg:col-span-3 border-2 border-main p-5 flex flex-col justify-center" key={post.id}>
                 <div className="flex gap-2 pb-2 items-center">
@@ -264,7 +263,7 @@ export default function ProfilePage() {
                         <p className="lg:text-2xl max-lg:text-xl truncate">
                             {post.title || 'Без названия'}
                         </p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-gray-600" title={post.desc}>
                             {post.desc || 'Нет описания'}
                         </p>
                     </div>
@@ -333,9 +332,9 @@ export default function ProfilePage() {
                     {userData?.name}
                 </h2>
 
-                <div className="grid grid-cols-3 gap-5 text-center">
+                <div className="grid grid-cols-2 gap-5 text-center">
                     {user && String(user.id) === String(params.uid) && (
-                        <div className="col-span-3 flex flex-col gap-3 items-center">
+                        <div className="col-span-2 flex flex-col gap-3 items-center">
                             {!userData?.google2fa_enabled ? (
                                 <button
                                     onClick={() => router.push(`/users/${params.uid}/2fa`)}
@@ -417,15 +416,15 @@ export default function ProfilePage() {
                     )}
                     <div className="col-span-1">подписчиков</div>
                     <div className="col-span-1">подписки</div>
-                    <div className="col-span-1">???</div>
+                    
                     <div className="col-span-1 font-bold">0</div>
                     <div className="col-span-1 font-bold">0</div>
-                    <div className="col-span-1 font-bold">??</div>
+                    
                 </div>
             </div>
 
             {/* Табы для переключения между контентом */}
-            <div className="flex justify-center gap-8 pt-5 border-b border-gray-200">
+            <div className="flex justify-center gap-5 pt-5 border-b border-gray-200">
                 <button
                     onClick={() => setActiveTab('posts')}
                     className={`pb-2 px-4 font-semibold transition-colors ${
@@ -458,7 +457,7 @@ export default function ProfilePage() {
                 </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-5 pt-5 max-h-[50vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="grid grid-cols-3 gap-5 pt-5 lg:max-h-[50vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {renderContent()}
             </div>
         </MainLayout>

@@ -98,7 +98,7 @@ export default function Sidebar({ children }) {
                         {user?.name ? user.name : "Войти"}
                     </Link>
                 </header>
-                <div className="mt-5">
+                <div className="mt-5 px-5">
                     {children}
                 </div>
             </div>

@@ -82,91 +82,91 @@ export default function Home() {
   }
 
   const [alert, setAlert] = useState();
-      const [currentPage, setCurrentPage] = useState(1);
-    const [lastPage, setLastPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(0);
 
   const getPost = async (reset = false) => {
-  let curPage = reset ? 1 : currentPage;
-  
-  if (!reset && posts.length > 0) {
-    setCurrentPage(currentPage + 1);
-    curPage++;
+    let curPage = reset ? 1 : currentPage;
+
+    if (!reset && posts.length > 0) {
+      setCurrentPage(currentPage + 1);
+      curPage++;
+    }
+
+    const res = await get(`/get-posts?page=${curPage}`);
+
+    if (reset) {
+      setPosts([]);
+    }
+
+    setLastPage(res.data.last_page);
+
+    if (res.success) {
+      const newPosts = res.data.data.map(element => ({
+        id: element.id,
+        title: element.title,
+        desc: element.desc,
+        user: element.user,
+        author_id: element.author_id,
+        author_name: element.user.name,
+        avatar: element.user.avatar,
+        tags: element.tags,
+        source: element.source?.name,
+        source_type: element.source?.type,
+        type: element.type,
+        comments: element?.messages?.length || 0,
+        created_at: new Date(element.created_at).toLocaleDateString()
+      }));
+
+      setPosts(prev => reset ? newPosts : [...prev, ...newPosts]);
+
+      // Store original posts for filtering
+      setOriginalPosts(prev => reset ? newPosts : [...prev, ...newPosts]);
+    } else {
+      setAlert({ content: 'На данный момент работа сервера приостановлена', type: 'err' });
+    }
   }
 
-  const res = await get(`/get-posts?page=${curPage}`);
+  const search = async (e) => {
+    e.preventDefault();
+    const searchTerm = e.target?.searchPost?.value;
+    console.log(searchTerm);
 
-  if (reset) {
-    setPosts([]);
+    if (searchTerm) {
+
+
+      const filtered = originalPosts.filter(el =>
+        el.title?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setPosts(filtered);
+    } else {
+      // Reset to original posts and refresh if needed
+      setCurrentPage(1);
+      await getPost(true);
+    }
   }
 
-  setLastPage(res.data.last_page);
+  const selectTag = async (e) => {
+    e.preventDefault();
+    const tagId = e.target?.value;
+    console.log(tagId);
 
-  if (res.success) {
-    const newPosts = res.data.data.map(element => ({
-      id: element.id,
-      title: element.title,
-      desc: element.desc,
-      user: element.user,
-      author_id: element.author_id,
-      author_name: element.user.name,
-      avatar: element.user.avatar,
-      tags: element.tags,
-      source: element.source?.name,
-      source_type: element.source?.type,
-      type: element.type,
-      comments: element?.messages?.length || 0,
-      created_at: new Date(element.created_at).toLocaleDateString()
-    }));
+    if (tagId && tagId != 0) {
 
-    setPosts(prev => reset ? newPosts : [...prev, ...newPosts]);
-    
-    // Store original posts for filtering
-    setOriginalPosts(prev => reset ? newPosts : [...prev, ...newPosts]);
-  } else {
-    setAlert({ content: 'На данный момент работа сервера приостановлена', type: 'err' });
+
+      const filtered = originalPosts.filter(video =>
+        video.tags?.some(tag => tag.id == tagId)
+      );
+      setPosts(filtered);
+    } else {
+      // Reset to original posts
+      setCurrentPage(1);
+      await getPost(true);
+    }
   }
-}
 
-const search = async (e) => {
-  e.preventDefault();
-  const searchTerm = e.target?.searchPost?.value;
-  console.log(searchTerm);
-
-  if (searchTerm) {
-
-    
-    const filtered = originalPosts.filter(el =>
-      el.title?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setPosts(filtered);
-  } else {
-    // Reset to original posts and refresh if needed
-    setCurrentPage(1);
-    await getPost(true);
-  }
-}
-
-const selectTag = async (e) => {
-  e.preventDefault();
-  const tagId = e.target?.value;
-  console.log(tagId);
-
-  if (tagId && tagId != 0) {
-   
-    
-    const filtered = originalPosts.filter(video =>
-      video.tags?.some(tag => tag.id == tagId)
-    );
-    setPosts(filtered);
-  } else {
-    // Reset to original posts
-    setCurrentPage(1);
-    await getPost(true);
-  }
-}
-
-// Add state for original posts
-const [originalPosts, setOriginalPosts] = useState([]);
+  // Add state for original posts
+  const [originalPosts, setOriginalPosts] = useState([]);
 
   const [comments, setComments] = useState([])
 
@@ -509,7 +509,7 @@ const [originalPosts, setOriginalPosts] = useState([]);
                 </p>
 
                 <a href={`/posts/${post.id}`}
-                className="w-max btn bg-main rounded-md">Перейти</a>
+                  className="w-max btn bg-main rounded-md">Перейти</a>
 
                 {/* <ContextMenu
                   id="more"
@@ -538,8 +538,13 @@ const [originalPosts, setOriginalPosts] = useState([]);
               </div>
               <div className="flex flex-col gap-2 mt-5">
                 {(post.source && post.source_type.includes('image/')) ? (
-                  <img src={`${BASE_URL}${post.source}` || 'no-media.png'} alt="" className="m-auto h-50 z-index-[-1] drop-shadow-xl" />
-                ) :(post.source && post.source_type.includes('video/')) ? (
+                  <Popup
+                    openTrigger={<img src={`${BASE_URL}${post.source}` || 'no-media.png'} alt="" className="m-auto h-50 z-index-[-1] drop-shadow-xl" />
+                    }>
+                  <img src={`${BASE_URL}${post.source}` || 'no-media.png'} alt="" className="m-auto mt-5 z-index-[-1] drop-shadow-xl hover:scale-[1.2] duration-300" />
+
+                  </Popup>
+                ) : (post.source && post.source_type.includes('video/')) ? (
                   <video src={`${BASE_URL}${post.source}`} alt="" controls className="m-auto w-max h-[45vh] aspect-ratio-[1/1] z-index-[-1] drop-shadow-xl" />
                 ) : post.source ? (
                   // <button onClick={() => downloadFile(post.source)}>
@@ -565,7 +570,7 @@ const [originalPosts, setOriginalPosts] = useState([]);
                 </p>
               </div>
 
-              
+
               <Popup
                 id="comment"
                 openTrigger={
@@ -741,10 +746,10 @@ const [originalPosts, setOriginalPosts] = useState([]);
           }
 
           <button
-                    onClick={getPost}
-                    className={`btn rounded-md ${currentPage == lastPage ? 'hidden' : ''}`}>
-                    Показать еще
-                </button>
+            onClick={getPost}
+            className={`btn rounded-md ${currentPage == lastPage ? 'hidden' : ''}`}>
+            Показать еще
+          </button>
         </div>
       </div>
     </MainLayout >
