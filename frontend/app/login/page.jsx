@@ -162,15 +162,15 @@ export default function Login() {
   const [alertMess, setAlertMess] = useState();
 
   return (
-    <div id="auth-page">
+    <div id="auth-page" className='w-full'>
       <canvas ref={canvasRef} id="fireflies" className='bg-black fixed top-0 z-index[-1] w-full h-full' />
 
 
       <DotPattern initialRadius={140} activeRadius={220} />
 
-      <div className="fixed z-index-2 flex justify-center items-center w-full h-full">
-        <div className="grid grid-cols-6 shadow-xl bg-bg/15 backdrop-blur-xs p-5 rounded-md text-bg w-2/4">
-          <div className="col-span-3 flex flex-col">
+      <div className="fixed flex justify-center items-center w-full h-full">
+        <div className="grid grid-cols-6 shadow-xl bg-bg/15 backdrop-blur-xs lg:p-5 max-lg:p-2 rounded-md text-bg lg:w-2/4 max-lg:w-full max-lg:mx-10 " >
+          <div className="col-span-3 flex flex-col max-lg:col-span-6 max-lg:items-center">
             <h2 className='text-4xl mb-8 text-main'>
               {requires2FA ? 'Подтверждение 2FA' : 'Войти'}
             </h2>
@@ -268,7 +268,7 @@ export default function Login() {
             )}
           </div>
 
-          <div className="col-span-3 flex flex-col justify-between items-center border-l-2 border-main">
+          <div className="col-span-3 flex flex-col max-lg:col-span-6 justify-between items-center lg:border-l-2 border-main">
 
             <div className="">
               <a href="/" className={`uppercase transition-all duration-300 w-max flex font-bold p-5 gap-2 items-center`}>

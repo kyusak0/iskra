@@ -121,17 +121,17 @@ export default function Register() {
 
 
     return (
-        <div id="reg-page">
+        <div id="reg-page" className='w-full'>
             <canvas ref={canvasRef} id="fireflies" className='bg-black fixed top-0 z-index[-1] w-full h-full' />
             <DotPattern initialRadius={140} activeRadius={220} />
 
 
-            <div className="fixed z-index-2 flex justify-center items-center w-full h-full">
-                <div className="grid grid-cols-6 shadow-xl bg-bg/15 backdrop-blur-xs p-5 rounded-md text-bg w-2/4" >
-                    <div className="col-span-3 flex flex-col">
+            <div className="fixed flex justify-center items-center w-full h-full">
+                <div className="grid grid-cols-6 shadow-xl bg-bg/15 backdrop-blur-xs p-5 max-lg:p-2 rounded-md text-bg lg:w-2/4 max-lg:w-full max-lg:mx-10" >
+                    <div className="col-span-3 max-lg:col-span-6 flex flex-col max-lg:items-center">
                         <h2 className='text-4xl mb-8 text-main'>Регистрация</h2>
                         <form onSubmit={handleSubmit}
-                            className='w-3/4 flex flex-col gap-5'>
+                            className='pr-4 flex flex-col gap-5'>
 
                             <input placeholder='Имя...'
                                 className="w-full px-3 py-2 border-2 border-main rounded-md"
@@ -147,13 +147,13 @@ export default function Register() {
 
                             <input placeholder='Пароль...'
                                 className="w-full px-3 py-2 border-2 border-main rounded-md"
-                                type="text" name="password" id="password"
+                                type="password" name="password" id="password"
                                 onChange={handleChange}
                                 required />
 
                             <input placeholder='Потвердить пароль...'
                                 className="w-full px-3 py-2 border-2 border-main rounded-md"
-                                type="text" name="password_confirmation" id="password_confirmation"
+                                type="password" name="password_confirmation" id="password_confirmation"
                                 onChange={handleChange}
                                 required />
 
@@ -166,7 +166,7 @@ export default function Register() {
                             </div>
                         </form>
                     </div>
-                    <div className="col-span-3 flex flex-col justify-between items-center border-l-2 border-main">
+                    <div className="col-span-3 max-lg:col-span-6 flex flex-col justify-between items-center lg:border-l-2  border-main ">
                         <div className="">
                             <a href="/" className={`uppercase transition-all duration-300 w-max flex font-bold p-5 gap-2 items-center`}>
                                 <img src="/logo.svg" alt="На главную" className="w-full h-10" />
