@@ -458,7 +458,6 @@ export default function ProfilePage() {
                 </button>
             </div>
 
-            {/* Контент в зависимости от выбранного таба */}
             <div className="grid grid-cols-3 gap-5 pt-5 max-h-[50vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {renderContent()}
             </div>

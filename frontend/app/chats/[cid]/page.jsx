@@ -69,7 +69,7 @@ export default function Chat({ chat_id }) {
 
         const offer = await peerRef.current.createOffer();
         await peerRef.current.setLocalDescription(offer);
-console.log("CALL offf")
+
         wsRef.current.send(JSON.stringify({
             type: "call_offer",
             data: {
@@ -885,7 +885,7 @@ console.log("CALL offf")
                                 : 'bg-main'
                                 }`}
                         >
-                            {isRecording ? '⏹️' : '🎙️'}
+                            {isRecording ? <img src="/micro-record.svg" alt=""  className='m-auto w-10 h-10'/> : <img src="/micro.svg" alt="" className='w-10 h-10'/>}
                         </button>
                         <form onSubmit={handleSend} className='w-full flex flex-col gap-2'>
                             <div className="flex w-full justify-start gap-10 items-center">
@@ -906,8 +906,19 @@ console.log("CALL offf")
                                             }
                                         }}
                                     />
-                                    <label htmlFor="source_com" className="text-4xl rotate-45">📎</label>
+                                    <label htmlFor="source_com" className="text-4xl"><img src="/file.svg" alt=""  className='m-auto w-10 h-10'/></label>
                                 </>) : (null)}
+
+                                <button
+                                type='button'
+                            onClick={isRecording ? stopRecording : startRecording}
+                            className={`rounded-md w-max px-2 py-1 text-4xl  ${isRecording
+                                ? 'bg-red-500 '
+                                : 'bg-main'
+                                }`}
+                        >
+                            {isRecording ? <img src="/micro-record.svg" alt=""  className='m-auto w-10 h-10'/> : <img src="/micro.svg" alt="" className='w-10 h-10'/>}
+                        </button>
 
 
 
@@ -917,9 +928,9 @@ console.log("CALL offf")
                                     <button
                                         type='submit'
                                         className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
-                                        disabled={!(content.trim() || file)}
+                                        disabled={!(content.trim() || file || recording)}
                                     >
-                                        ➤
+                                        <img src="/send.svg" alt="" className='m-auto w-10 h-10'/>
                                     </button>
                                 )}
 
