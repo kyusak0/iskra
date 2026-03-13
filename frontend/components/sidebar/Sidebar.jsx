@@ -24,7 +24,7 @@ export default function Sidebar({ children }) {
     }
     return (
         <div className="grid grid-cols-12">
-            <div className={`relative transition-all duration-300 ${open ? 'max-lg:w-3/4 col-span-2 pl-20' : 'max-lg:hidden col-span-1'} z-2 h-screen bg-main text-fg left-0 flex flex-col items-center gap-10 justify-evenly`}>
+            <div className={`relative transition-all duration-300 ${open ? 'max-lg:col-span-10 col-span-2 lg:pl-20' : 'max-lg:hidden col-span-1'} z-2 h-screen bg-main text-fg left-0 flex flex-col items-center gap-10 justify-evenly`}>
                 <div
                     className="absolute top-5 right-5 cursor-pointer text-white font-bold uppercase"
                     onClick={() => {
@@ -75,7 +75,7 @@ export default function Sidebar({ children }) {
                 </div>
             </div>
 
-            <div className={`transition-all duration-300 ${open ? 'col-span-10 max-lg:col-span-12  ' : 'col-span-11  max-lg:col-span-12 '} `}
+            <div className={`transition-all duration-300 ${open ? 'col-span-10 max-lg:hidden' : 'col-span-11 max-lg:col-span-12 '} `}
                 onClick={() => {
                     if (open) {
                         setOpen(false)
@@ -84,7 +84,7 @@ export default function Sidebar({ children }) {
                 }}>
                 <header className="flex justify-between items-center h-15 px-10 bg-main shadow-sm relative w-full z-1">
                     <button
-                        className="lg:hidden px-3 py-1 border-2 border-main rounded-full"
+                        className="lg:hidden btn rounded-full border-bg border-2"
                         onClick={() => setOpen(!open)}
                     >i</button>
 
@@ -93,7 +93,7 @@ export default function Sidebar({ children }) {
                         onClick={back}>Назад</button>
                     <Link
                         href={user?.name ? `/users/${user?.id}` : "/login"}
-                        className={`btn border-b-2 border-bg `}
+                        className={`btn border-b-2 border-bg truncate`}
                     >
                         {user?.name ? user.name : "Войти"}
                     </Link>
