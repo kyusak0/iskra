@@ -1,16 +1,14 @@
-// Добавьте обработку ошибок и восстановление соединения
+
 const WebSocket = require('ws');
 const http = require('http');
 
 const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
-// Хранилище подключений
-const clients = new Map(); // userId -> { ws, lastPing }
-const chatRooms = new Map(); // chatId -> Set of userIds
-const userChats = new Map(); // userId -> Set of chatIds
+const clients = new Map();
+const chatRooms = new Map();
+const userChats = new Map(); 
 
-// Обработка ping/pong для обнаружения мертвых соединений
 const PING_INTERVAL = 30000;
 const CONNECTION_TIMEOUT = 60000;
 
@@ -19,7 +17,6 @@ wss.on('connection', (ws, req) => {
     let currentUser = null;
     let currentChat = null;
     
-    // Устанавливаем таймаут для соединения
     ws.isAlive = true;
     ws.on('pong', () => {
         ws.isAlive = true;
@@ -36,16 +33,13 @@ wss.on('connection', (ws, req) => {
                     currentUser = user_id;
                     currentChat = chat_id;
                     
-                    // Сохраняем соединение
                     clients.set(user_id, { ws, lastPing: Date.now() });
                     
-                    // Добавляем в комнату чата
                     if (!chatRooms.has(chat_id)) {
                         chatRooms.set(chat_id, new Set());
                     }
                     chatRooms.get(chat_id).add(user_id);
                     
-                    // Сохраняем связь пользователь-чаты
                     if (!userChats.has(user_id)) {
                         userChats.set(user_id, new Set());
                     }
@@ -206,7 +200,6 @@ wss.on('connection', (ws, req) => {
     ws.on('close', () => {
         console.log('Client disconnected:', currentUser);
         if (currentUser) {
-            // Удаляем из всех чатов
             const userChatsList = userChats.get(currentUser) || new Set();
             userChatsList.forEach(chatId => {
                 const room = chatRooms.get(chatId);
@@ -235,13 +228,11 @@ wss.on('connection', (ws, req) => {
     });
 });
 
-// Функция для проверки активности звонка
 function isCallActive(chatId) {
     // Реализуйте логику проверки активного звонка
     return false;
 }
 
-// Функция для рассылки сообщения всем участникам чата
 function broadcastToChat(chatId, message, senderWs = null) {
     const room = chatRooms.get(chatId);
     if (!room) return;
@@ -264,22 +255,21 @@ function broadcastToChat(chatId, message, senderWs = null) {
     console.log(`Broadcast to chat ${chatId}: sent to ${sentCount} users`);
 }
 
-// Функция для отправки личного сообщения
-function sendToUser(userId, message) {
-    const clientData = clients.get(userId);
-    if (clientData && clientData.ws.readyState === WebSocket.OPEN) {
-        clientData.ws.send(JSON.stringify(message));
-        return true;
-    }
-    return false;
-}
+// function sendToUser(userId, message) {
+//     const clientData = clients.get(userId);
+//     if (clientData && clientData.ws.readyState === WebSocket.OPEN) {
+//         clientData.ws.send(JSON.stringify(message));
+//         return true;
+//     }
+//     return false;
+// }
 
 // Пинг для поддержания соединения и проверки живых соединений
+
 setInterval(() => {
     clients.forEach((clientData, userId) => {
         const { ws, lastPing } = clientData;
         
-        // Проверяем, не умерло ли соединение
         if (Date.now() - lastPing > CONNECTION_TIMEOUT) {
             console.log(`Terminating inactive connection for user ${userId}`);
             ws.terminate();

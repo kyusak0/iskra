@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Video extends Model
 {
     protected $fillable = [
-        'title','desc','source_id','duration','cover_id','views_count','author_id','url'
+        'title','desc','source_id','duration','cover_id','views_count','author_id','url','commentable'
     ];
 
     public function source(){
@@ -30,5 +30,9 @@ class Video extends Model
     public function tags()
     {
         return $this->belongsToMany(Tag::class, 'tag_video', 'video_id', 'tag_id');
+    }
+
+    public function reposts(){
+        return $this->hasMany(Repost::class, 'post_id');
     }
 }

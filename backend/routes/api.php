@@ -16,7 +16,7 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/get-posts', [PostController::class, 'getPosts']);
-Route::get('/get-post/{id}', [PostController::class, 'getPostInfo']);
+Route::get('/get-post/{url}', [PostController::class, 'getPostInfo']);
 
 Route::get('/get-videos', [PostController::class, 'getVideos']);
 Route::get('/get-video/{id}', [PostController::class, 'getVideoInfo']);
@@ -49,8 +49,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/create-chat', [DebateController::class, 'createChat']);
     Route::post('/get-or-create-personal-chat', [DebateController::class, 'createChatPersonal']);
     
-    Route::post('/send-message/post', [DebateController::class, 'sendMessage']);
-    Route::post('/send-message/chat', [DebateController::class, 'sendMessage']);
+    Route::post('/send-message/post/{id}', [DebateController::class, 'sendMessage']);
+    Route::post('/send-message/chat/{id}', [DebateController::class, 'sendMessage']);
+    Route::post('/send-message/video/{id}', [DebateController::class, 'sendMessage']);
+
+    Route::post('/commentable/video', [DebateController::class, 'commentable']);
+    Route::post('/commentable/chat', [DebateController::class, 'commentable']);
+    Route::post('/commentable/post', [DebateController::class, 'commentable']);
+
+    Route::post('/repost', [DebateController::class, 'repost']);
+
     Route::post('/delete-message', [DebateController::class, 'deleteMessage']);
     Route::get('/get-chats', [DebateController::class, 'getChats']);
     Route::get('/get-chat-info/{id}', [DebateController::class, 'getChatInfo']);
@@ -61,9 +69,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/subscribe', [DebateController::class, 'subscribe']);
 
     Route::post('/create-tag', [InfoController::class, 'createTag']);
-
     Route::post('/edit-tag', [InfoController::class, 'editTag']);
     Route::get('/delete-tag/{id}', [InfoController::class, 'deleteTag']);
+
+    Route::get('/get-reports', [InfoController::class, 'getReports']);
+    Route::post('/create-report', [InfoController::class, 'createReport']);
+    Route::get('/delete-report/{id}', [InfoController::class, 'deleteReport']);
+
+    Route::get('/get-users', [InfoController::class, 'getUsers']);
+    Route::post('/block-user', [InfoController::class, 'blockUser']);
 });
 
 Route::post('/2fa/verify-login', [TwoFactorController::class, 'verifyLoginCode'])

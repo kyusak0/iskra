@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
 use App\Models\Tag;
+use App\Models\User;
+use App\Models\Report;
 
 class InfoController extends Controller
 {
@@ -125,4 +127,46 @@ class InfoController extends Controller
             ], 500);
         }
     }
+
+    public function getUsers(){
+        $users = User::all();
+
+        return response()->json([
+            'success' => true,
+            'data' => $users,
+        ]);
+    }
+
+    public function blockUser(Request $request){
+        $user = User::findOrFail($request->id)->update([
+            'is_blocked' => $request->is_blocked
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $user,
+        ]);
+    }
+
+    public function getReports(){
+        $reports = Report::all();
+
+        return response()->json([
+            'success' => true,
+            'data' => $reports,
+        ]);
+    }
+
+    public function createReport(Request $request){
+        $report = Report::create([
+            'desc' => $request->desc,
+            'target' =>  $request->target
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $report,
+        ]);
+    }
+
 }

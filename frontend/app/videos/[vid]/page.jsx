@@ -7,13 +7,14 @@ import { notFound, useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import Cookies from 'js-cookie';
+import ContextMenu from "../../../components/contextMenu/ContextMenu";
 
 const BASE_URL = 'http://localhost:8001/storage/';
 const VIEW_COOKIE_PREFIX = 'video_viewed_';
 const VIEW_COOKIE_EXPIRY = 1; // дней
 
 export default function Videos() {
-    const { user, get } = useAuth();
+    const { user, get, post } = useAuth();
     const params = useParams();
     const vid = params.vid;
 
@@ -27,26 +28,80 @@ export default function Videos() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Функция проверки, был ли уже просмотр
+    const [closeContext, setCloseContext] = useState(null);
+
+    const [answer, setAnswer] = useState()
+    const [file, setFile] = useState()
+    const [content, setContent] = useState("");
+
+    const handleSend = async (e) => {
+        e.preventDefault();
+
+        try {
+            let loadFile = null
+            if (file) {
+                const formData = {
+                    file: file,
+                    author_id: user.id
+                }
+
+                loadFile = await post('/load-file', formData);
+            }
+
+            console.log(loadFile)
+
+
+            const newData = {
+                author_id: user.id,
+                video_id: video.id,
+                content: content,
+                answer_id: answer?.id,
+                source_id: loadFile?.data.id
+            };
+
+            const res = await post(`/send-message/video/${video.id}`, newData);
+            console.log(res)
+
+            setVideo({
+                ...video,
+                messages: [
+                    ...(video.messages || []),
+                    {
+                        id: res.data.id,
+                        content: res.data.content,
+                        message: res.data.message,
+                        created_at: new Date(res.data.created_at).toLocaleDateString(),
+                        source: res.data.source,
+                        user: res.data.user,
+                    }
+                ]
+            });
+
+            setContent('');
+            setAnswer(null);
+            setFile(null);
+
+        } catch (err) {
+            console.log(err.message)
+        }
+
+    };
+
     const hasViewedVideo = useCallback((videoId) => {
         const cookieName = `${VIEW_COOKIE_PREFIX}${videoId}`;
         return Cookies.get(cookieName) === 'true';
     }, []);
 
-    // Функция отметки просмотра в куки
     const markVideoAsViewed = useCallback((videoId) => {
         const cookieName = `${VIEW_COOKIE_PREFIX}${videoId}`;
         Cookies.set(cookieName, 'true', { expires: VIEW_COOKIE_EXPIRY });
     }, []);
 
-    // Функция отправки просмотра на сервер
     const recordView = useCallback(async () => {
-        // Проверяем, не был ли уже отправлен просмотр
         if (viewRecordedRef.current || viewRecorded) {
             return;
         }
 
-        // Проверяем куки перед отправкой
         if (hasViewedVideo(vid)) {
             console.log('Видео уже было просмотрено ранее');
             viewRecordedRef.current = true;
@@ -56,39 +111,32 @@ export default function Videos() {
 
         try {
             console.log('Отправка просмотра на сервер...');
-            // Отправляем запрос на сервер
             await get(`/view/${vid}`);
-            
-            // Отмечаем в куки и ref
+
             markVideoAsViewed(vid);
             viewRecordedRef.current = true;
             setViewRecorded(true);
-            
+
             console.log('Просмотр засчитан');
         } catch (err) {
             console.error('Ошибка при записи просмотра:', err);
         }
     }, [vid, get, hasViewedVideo, markVideoAsViewed, viewRecorded]);
 
-    // Обработчик времени воспроизведения
     const handleTimeUpdate = useCallback(() => {
-        // Если просмотр уже засчитан - выходим
         if (viewRecordedRef.current || viewRecorded) return;
 
-        // Если видео просмотрено хотя бы 1 секунду
         if (videoRef.current && videoRef.current.currentTime >= 1) {
             recordView();
         }
     }, [recordView, viewRecorded]);
 
-    // Обработчик окончания видео
     const handleEnded = useCallback(() => {
         if (!viewRecordedRef.current && !viewRecorded) {
             recordView();
         }
     }, [recordView, viewRecorded]);
 
-    // Очистка при размонтировании
     useEffect(() => {
         return () => {
             if (watchTimerRef.current) {
@@ -107,16 +155,20 @@ export default function Videos() {
             }
 
             const el = res.data;
+            console.log(res)
             const newRecord = {
-                id: vid,
+                id: el.id,
                 video: el.source,
                 duration: el.duration,
                 created_at: new Date(el.created_at).toDateString(),
-                author: el.source.user,
+                author: el.user,
                 title: el.title,
                 desc: el.desc,
                 tags: el.tags || [],
-                views: el.views_count || 0
+                views: el.views_count || 0,
+                messages: el.messages || [],
+                commentable: res.data?.commentable,
+                url: res.data.url
             };
 
             setVideo(newRecord);
@@ -131,6 +183,58 @@ export default function Videos() {
             setLoading(false);
         }
     }, [vid, get]);
+
+    const reportMessage = async (message, desc) => {
+        if (!desc.trim()) {
+            return;
+        }
+
+        try {
+            const reportData = {
+                desc: desc,
+                target: `comment_${message.id}_video_${video?.id}_user_${message.user.id}`
+            };
+
+            const response = await post('/create-report', reportData);
+
+        } catch (error) {
+            console.error('Ошибка при отправке жалобы:', error);
+        }
+    };
+
+    // Функция удаления комментария
+    const deleteMessage = async (message) => {
+        try {
+            const response = await post('/delete-message', { id: message.id });
+
+            if (response.success) {
+                // Обновляем список комментариев
+                setComments(prev => prev.filter(c => c.id !== message.id));
+            }
+        } catch (error) {
+            console.error('Ошибка при удалении комментария:', error);
+            alert('Не удалось удалить комментарий');
+        }
+    };
+
+    // Функция закрепления комментария
+    const pinMessage = async (message) => {
+        try {
+            const response = await post('/pin-message', {
+                id: message.id,
+                post_id: postData?.id
+            });
+
+            if (response.success) {
+                alert('Комментарий закреплен');
+            }
+        } catch (error) {
+            console.error('Ошибка при закреплении комментария:', error);
+            alert('Не удалось закрепить комментарий');
+        }
+    };
+
+    const selectedMess = 0
 
     const getRelatedVideos = async (currentVideoTags) => {
         try {
@@ -170,7 +274,7 @@ export default function Videos() {
     useEffect(() => {
         viewRecordedRef.current = false;
         setViewRecorded(false);
-        
+
         // Проверяем куки при загрузке нового видео
         if (vid && hasViewedVideo(vid)) {
             viewRecordedRef.current = true;
@@ -197,7 +301,28 @@ export default function Videos() {
                 videoRef.current.removeEventListener('timeupdate', handleFirstSecond);
             }
         };
-    }, [videoRef.current, recordView, viewRecorded]); // Зависимость от videoRef.current
+    }, [videoRef.current, recordView, viewRecorded]);
+
+    const commentability = async () => {
+        const data = {
+            video_id: video.id,
+            commentable: video.commentable == 'false' ? 'true' : 'false'
+        }
+        const res = await post('/commentable/video', data);
+        console.log(res)
+
+        // setVideo(prev, {commentable: data.commentable})
+    }
+
+    const repost = async () => {
+        const data = {
+            post_id: video.id,
+            user_id: user.id,
+            link: `/videos/${video.url}`
+        }
+
+        await post('/repost', data)
+    }
 
     if (loading) {
         return (
@@ -272,6 +397,8 @@ export default function Videos() {
                                     <span className="font-medium">{video.author.name}</span>
                                 </Link>
 
+                                <button onClick={repost} className="w-max btn rounded-md">Репост</button>
+
                                 <div className="flex gap-5 items-center">
                                     <button className="px-4 py-2 border border-main rounded-full hover:bg-main/10 transition-colors">
                                         👍 0
@@ -293,9 +420,222 @@ export default function Videos() {
                                 </div>
                             )}
 
-                            {/* Comments */}
-                            <div className="mt-6 text-gray-500 text-center py-4 border-t border-gray-200">
-                                Комментарии отключены
+                            <div className="mt-6 text-gray-500 py-4 border-t border-gray-200">
+                                <h3 className="text-xl mb-5">
+                                    Комментарии
+                                </h3>
+                                {video.commentable == 'true' && (<button onClick={commentability}
+                                    className="btn rounded-md">Отключить</button>)}
+
+                                {video.commentable !== 'true' ? (
+                                    <div className=" flex flex-col gap-5 items-center"><p>Комментарии отключены</p>
+                                        {video.author.id == user.id && (
+                                            <button onClick={commentability}
+                                                className="btn rounded-md">Включить</button>)}
+                                    </div>
+                                ) : (<>
+                                    <div
+                                        className="lg:h-100 lg:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-lg:mb-10">
+                                        {video?.messages?.map((message) => (
+                                            <div
+                                                className={`w-full mb-5 ${selectedMess == message.id ? 'shadow-lg shadow-main/50' : ''}`}
+                                                key={message.id}
+                                                id={`${message.id}`}
+                                            >
+                                                <div className="flex flex-col items-start">
+                                                    <a
+                                                        href={`/users/${message.user?.id}`}
+                                                        className="flex items-center gap-3 w-full mb-2 hover:opacity-80 transition-opacity"
+                                                    >
+                                                        {message.user?.avatar ? (
+                                                            <img
+                                                                src={`${BASE_URL}${message.user?.avatar}`}
+                                                                alt={`Аватар ${message.user?.name}`}
+                                                                className="rounded-full w-10 h-10 object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-10 h-10 rounded-full bg-main text-lg font-bold text-white flex items-center justify-center">
+                                                                {message.user?.name?.[0]?.toUpperCase()}
+                                                            </div>
+                                                        )}
+
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium text-gray-900">
+                                                                {message.user?.name}
+                                                            </span>
+                                                            <span className="text-xs text-gray-500">
+                                                                {new Date(message.created_at).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    </a>
+
+                                                    <div className="w-full pl-13">
+                                                        <ContextMenu
+                                                            closeContext={closeContext}
+                                                            openTrigger={
+                                                                <div className="w-full">
+                                                                    {message.message?.content && (
+                                                                        <div className="mb-2">
+                                                                            <a
+                                                                                href={`#${message.message.id}`}
+                                                                                onClick={() => setCloseContext(true)}
+                                                                                className={`
+                                                                            block border-l-4 rounded-r-md p-3 text-sm
+                                                                            ${message.author_id === user?.id
+                                                                                        ? 'bg-main/10 border-main'
+                                                                                        : 'bg-gray-100 border-gray-400'
+                                                                                    }
+                                                                            hover:bg-opacity-80 transition-colors
+                                                                        `}
+                                                                            >
+                                                                                <span className="text-xs text-gray-500 block mb-1">
+                                                                                    Ответ на комментарий:
+                                                                                </span>
+                                                                                {message.message?.content}
+                                                                            </a>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Текст комментария */}
+                                                                    <p className="text-gray-800 whitespace-pre-wrap break-words">
+                                                                        {message.content}
+                                                                    </p>
+                                                                </div>
+                                                            }
+                                                        >
+                                                            <div className="bg-white min-w-[200px]">
+                                                                {/* Форма жалобы */}
+                                                                <form
+                                                                    onSubmit={(e) => {
+                                                                        e.preventDefault();
+                                                                        const formData = new FormData(e.target);
+                                                                        reportMessage(message, formData.get('report_desc'));
+                                                                    }}
+                                                                    className="mb-2"
+                                                                >
+                                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                                        Пожаловаться
+                                                                    </label>
+                                                                    <div className="flex gap-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            name="report_desc"
+                                                                            placeholder="Причина жалобы..."
+                                                                            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-main"
+                                                                            required
+                                                                        />
+                                                                        <button
+                                                                            type="submit"
+                                                                            className="btn text-sm rounded-md transition-colors"
+                                                                        >
+                                                                            Отправить
+                                                                        </button>
+                                                                    </div>
+                                                                </form>
+
+                                                                <div className="border-t border-gray-200 pt-2">
+                                                                    <button
+                                                                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center gap-2"
+                                                                        onClick={() => {
+                                                                            setCloseContext(true);
+                                                                            setAnswer({
+                                                                                id: message.id,
+                                                                                content: message.content,
+                                                                                userName: message.user?.name
+                                                                            });
+                                                                        }}
+                                                                    >
+                                                                        Ответить
+                                                                    </button>
+
+                                                                    {/* Кнопка копирования */}
+                                                                    <button
+                                                                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center gap-2"
+                                                                        onClick={() => {
+                                                                            navigator.clipboard.writeText(message.content);
+                                                                            setCloseContext(true);
+                                                                        }}
+                                                                    >
+                                                                        Копировать текст
+                                                                    </button>
+
+                                                                    {/* Кнопка удаления (только для своих комментариев или автора видео) */}
+                                                                    {(message.author_id === user?.id && message.author_id === video.user?.id) && (
+                                                                        <button
+                                                                            className="w-full text-red-300 text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors flex items-center gap-2"
+                                                                            onClick={() => {
+
+                                                                                setCloseContext(true);
+                                                                            }}
+                                                                        >
+                                                                            Удалить
+                                                                        </button>
+                                                                    )}
+
+                                                                    {video?.author_id === user?.id && (
+                                                                        <button
+                                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center gap-2"
+                                                                            onClick={() => {
+                                                                                pinMessage(message);
+                                                                                setCloseContext(true);
+                                                                            }}
+                                                                        >
+                                                                            Закрепить
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </ContextMenu>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <form onSubmit={handleSend}
+                                        className='w-full flex flex-col gap-2 mt-10 max-lg:fixed  max-lg:bg-bg max-lg:bottom-0'>
+                                        {user ? (
+                                            <>
+                                                {answer ? (
+                                                    <div className="flex justify-between">
+                                                        <a href={`#${answer?.id}`}>{answer?.content}</a>
+                                                        <button onClick={() => { setAnswer(null) }}>❌</button>
+                                                    </div>
+                                                ) : (null)}
+
+                                                <div className="flex w-full justify-start gap-10 items-center">
+                                                    <input
+                                                        type="text"
+                                                        value={content}
+                                                        name="content"
+                                                        onChange={(e) => setContent(e.target.value)}
+                                                        className='w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:border-main'
+                                                        placeholder="Комментировать..."
+                                                    />
+
+                                                    <button
+                                                        type="submit"
+                                                        className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
+                                                        disabled={!(content.trim() || file)}
+                                                    >
+                                                        ➤
+                                                    </button></div>
+                                            </>
+                                        ) : (
+                                            <p className="text-xl text-center">
+                                                Для того чтобы оставить Комментарий, нужно войти в аккаунт
+                                                <br />
+                                                <a href="/login" className="text-main">
+                                                    Войти
+                                                </a>
+                                            </p>
+
+                                        )}
+                                    </form></>
+                                )}
+
+
+
                             </div>
                         </div>
                     </div>

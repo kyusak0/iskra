@@ -18,7 +18,6 @@ class PostController extends Controller
             'author_id' => 'required|exists:users,id',
             'type' => 'required',
             'url' => 'required|string'
-
         ], [
             'title.string' => 'Заголовок должен быть текстовой строкой',
             
@@ -58,8 +57,8 @@ class PostController extends Controller
         ]);
     }
 
-    public function getPostInfo($id){
-        $post = Post::with(['user', 'source', 'messages', 'messages.source', 'messages.user', 'messages.message', 'tags'])->findOrFail($id);
+    public function getPostInfo($url){
+        $post = Post::with(['user', 'source', 'messages', 'messages.source', 'messages.user', 'messages.message', 'tags'])->where('url', $url)->first();
 
         return response()->json([
             'success' => true,
@@ -98,7 +97,7 @@ class PostController extends Controller
 
     public function getVideos(){
         $videos = Video::query()
-    ->with(['source.user', 'source', 'cover', 'messages', 'tags', 'user'])
+    ->with(['source.user', 'source', 'cover', 'messages', 'messages.message', 'tags', 'user'])
     ->orderBy('views_count', 'desc')
     ->paginate(3);
 
@@ -109,7 +108,7 @@ class PostController extends Controller
     }
 
     public function getVideoInfo($id){
-        $video = Video::with(['source.user', 'source', 'cover', 'messages', 'tags'])->findOrFail($id);
+        $video = Video::with(['user', 'source', 'cover', 'messages', 'messages.user', 'messages.message', 'tags'])->where('url', $id)->first();
     
         return response()->json([
             'success' => true,

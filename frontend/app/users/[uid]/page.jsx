@@ -16,7 +16,7 @@ export default function ProfilePage() {
     const [userData, setUserData] = useState(null);
     const router = useRouter()
     const [disable2FAOpen, setDisable2FAOpen] = useState(false);
-    const [disableCode, setDisableCode]= useState();
+    const [disableCode, setDisableCode] = useState();
     const [disableForm, setDisableForm] = useState({
         email: '',
         password: '',
@@ -24,7 +24,7 @@ export default function ProfilePage() {
     });
     const [disableLoading, setDisableLoading] = useState(false);
     const [disableError, setDisableError] = useState('');
-    const [activeTab, setActiveTab] = useState('posts'); // 'posts', 'videos', 'reposts'
+    const [activeTab, setActiveTab] = useState('posts');
     const [isCreatingChat, setIsCreatingChat] = useState(false);
 
     const { user, get, post, loading } = useAuth()
@@ -44,8 +44,8 @@ export default function ProfilePage() {
                     avatar: res.data.avatar,
                     posts: res.data.posts,
                     google2fa_enabled: !!res.data.google2fa_enabled,
-                    // videos извлекаем из sources
-                    videos: res.data.videos || []
+                    videos: res.data.videos || [],
+                    reposts: res.data.reposts || []
                 });
             } else {
                 notFound()
@@ -59,38 +59,38 @@ export default function ProfilePage() {
     }
 
     const handleCreatePersonalChat = async () => {
-    if (!user || !userData) return;
-    
-    setIsCreatingChat(true);
-    try {
-        // Отправляем запрос на создание/получение чата
-        const res = await post('/get-or-create-personal-chat', {
-            user_id: user.id,
-            other_user_id: userData.id,
-        });
+        if (!user || !userData) return;
 
-        if (res.success && res.data?.id) {
-            // Переходим в чат (существующий или новый)
-            router.push(`/chats/${res.data.id}`);
-            
-            // Можно показать уведомление
-            if (res.data.isNew) {
-                alert('Новый чат создан');
+        setIsCreatingChat(true);
+        try {
+            // Отправляем запрос на создание/получение чата
+            const res = await post('/get-or-create-personal-chat', {
+                user_id: user.id,
+                other_user_id: userData.id,
+            });
+
+            if (res.success && res.data?.id) {
+                // Переходим в чат (существующий или новый)
+                router.push(`/chats/${res.data.id}`);
+
+                // Можно показать уведомление
+                if (res.data.isNew) {
+                    alert('Новый чат создан');
+                } else {
+                    // Просто переходим в существующий чат без уведомления
+                    console.log('Переход в существующий чат');
+                }
             } else {
-                // Просто переходим в существующий чат без уведомления
-                console.log('Переход в существующий чат');
+                console.error('Failed to get/create chat');
+                alert('Не удалось создать чат');
             }
-        } else {
-            console.error('Failed to get/create chat');
-            alert('Не удалось создать чат');
+        } catch (error) {
+            console.error('Error creating chat:', error);
+            alert('Ошибка при создании чата');
+        } finally {
+            setIsCreatingChat(false);
         }
-    } catch (error) {
-        console.error('Error creating chat:', error);
-        alert('Ошибка при создании чата');
-    } finally {
-        setIsCreatingChat(false);
-    }
-};
+    };
 
     const handleDisableChange = (e) => {
         const { name, value } = e.target;
@@ -168,19 +168,18 @@ export default function ProfilePage() {
     const getFilteredContent = () => {
         if (!userData) return [];
 
-        switch(activeTab) {
+        switch (activeTab) {
             case 'posts':
                 return userData.posts || [];
             case 'videos':
                 return userData.videos || [];
             case 'reposts':
-                return []; // Заглушка для репостов
+                return userData.reposts || [];
             default:
                 return [];
         }
     };
 
-    // Проверка, является ли файл видео
     const isVideoFile = (source) => {
         if (!source || !source.name) return false;
         const videoExtensions = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'];
@@ -188,7 +187,6 @@ export default function ProfilePage() {
         return videoExtensions.includes(extension);
     };
 
-    // Проверка, является ли файл изображением
     const isImageFile = (source) => {
         if (!source || !source.name) return false;
         const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
@@ -200,16 +198,45 @@ export default function ProfilePage() {
         const content = getFilteredContent();
 
         if (activeTab === 'reposts') {
-            // Заглушка для репостов
-            return (
-                <div className="col-span-3 flex flex-col items-center justify-center py-10 text-gray-500">
-                    <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                    </svg>
-                    <p className="text-xl font-semibold">Репостов пока нет</p>
-                    <p className="text-sm">Когда пользователь сделает репост, они появятся здесь</p>
+            return content.map((post, index) => (
+                <div className="col-span-1 max-lg:col-span-3 border-2 border-main p-5 flex flex-col justify-center" key={post.id}>
+                    <div className="flex gap-2 pb-2 items-center">
+                        {post.source && post.source.type && post.source.type.includes('image') ? (
+                            <img
+                                src={`${BASE_URL}${post.source.name}`}
+                                alt={post.title}
+                                className="h-20 w-20 object-cover bg-gray-100"
+                            />
+                        ) : (
+                            post.link.includes('posts/') ? (<div className="h-20 w-20 bg-gray-200 flex items-center justify-center">
+                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </div>) : (<div className="h-20 w-20 bg-gray-200 flex items-center justify-center">
+                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </div>)
+
+                        )}
+                        <div className="w-full">
+                            <p className="lg:text-2xl max-lg:text-xl truncate">
+                                {post.posts.title || 'Без названия'}
+                            </p>
+
+                            <p className="text-sm text-gray-600" title={post.desc}>
+                                {post.posts.desc || 'Нет описания'}
+                            </p>
+                        </div>
+                    </div>
+                    <a
+                        href={`${post.link}`}
+                        className="w-full px-2 py-1 bg-main text-white font-bold uppercase rounded-md text-center hover:bg-main-dark transition-colors"
+                    >
+                        {post.link.includes('posts/') ? 'читать пост' : 'Смотреть видео'}
+                    </a>
                 </div>
-            );
+            ));
         }
 
         if (content.length === 0) {
@@ -222,8 +249,8 @@ export default function ProfilePage() {
                         {activeTab === 'posts' ? 'Постов пока нет' : 'Видео пока нет'}
                     </p>
                     <p className="text-sm">
-                        {activeTab === 'posts' 
-                            ? 'Когда пользователь опубликует пост, он появится здесь' 
+                        {activeTab === 'posts'
+                            ? 'Когда пользователь опубликует пост, он появится здесь'
                             : 'Когда пользователь загрузит видео, оно появится здесь'}
                     </p>
                 </div>
@@ -231,18 +258,16 @@ export default function ProfilePage() {
         }
 
         if (activeTab === 'videos') {
-            // Отображение видео из sources
             return content.map((source, index) => {
-                // Проверяем, есть ли вложенные видео
                 const videoItem = source.videos && source.videos.name ? source.videos : source;
-                
+
                 return (
                     <div className="col-span-1 max-lg:col-span-3 border-2 border-main p-5 flex flex-col justify-center" key={source.id || index}>
                         <div className="flex gap-2 pb-2 items-center">
                             {videoItem.name && isVideoFile(videoItem) ? (
-                                <video 
-                                    src={`${BASE_URL}${videoItem.name}`} 
-                                    className="h-20 w-20 object-cover bg-gray-100" 
+                                <video
+                                    src={`${BASE_URL}${videoItem.name}`}
+                                    className="h-20 w-20 object-cover bg-gray-100"
                                     controls={false}
                                     muted
                                 >
@@ -269,8 +294,8 @@ export default function ProfilePage() {
                                 )}
                             </div>
                         </div>
-                        <a 
-                            href={`/videos/${source.id}`}
+                        <a
+                            href={`/videos/${source.url}`}
                             className="w-full px-2 py-1 bg-main text-white font-bold uppercase rounded-md text-center hover:bg-main-dark transition-colors"
                         >
                             смотреть видео
@@ -284,10 +309,10 @@ export default function ProfilePage() {
             <div className="col-span-1 max-lg:col-span-3 border-2 border-main p-5 flex flex-col justify-center" key={post.id}>
                 <div className="flex gap-2 pb-2 items-center">
                     {post.source && post.source.type && post.source.type.includes('image') ? (
-                        <img 
-                            src={`${BASE_URL}${post.source.name}`} 
-                            alt={post.title} 
-                            className="h-20 w-20 object-cover bg-gray-100" 
+                        <img
+                            src={`${BASE_URL}${post.source.name}`}
+                            alt={post.title}
+                            className="h-20 w-20 object-cover bg-gray-100"
                         />
                     ) : (
                         <div className="h-20 w-20 bg-gray-200 flex items-center justify-center">
@@ -305,8 +330,8 @@ export default function ProfilePage() {
                         </p>
                     </div>
                 </div>
-                <a 
-                    href={`/posts/${post.id}`}
+                <a
+                    href={`/posts/${post.url}`}
                     className="w-full px-2 py-1 bg-main text-white font-bold uppercase rounded-md text-center hover:bg-main-dark transition-colors"
                 >
                     читать пост
@@ -322,14 +347,14 @@ export default function ProfilePage() {
         <MainLayout>
             <div className="flex pb-2 flex-col items-center gap-5 border-b-2 border-main">
                 <button
-                    onClick={()=>{console.log(userData)}}
+                    onClick={() => { console.log(userData) }}
                     className="hidden"
                 >
                     test
                 </button>
                 <Popup
                     openTrigger={userData?.avatar ? (
-                        <img src={`${BASE_URL + userData.avatar}`} alt="" className="w-20 h-20 rounded-full bg-main cursor-pointer hover:opacity-80 transition-opacity"/>
+                        <img src={`${BASE_URL + userData.avatar}`} alt="" className="w-20 h-20 rounded-full bg-main cursor-pointer hover:opacity-80 transition-opacity" />
                     ) : (
                         <div className="w-20 h-20 rounded-full bg-main text-4xl font-bold text-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
                             {userData?.name ? userData.name[0] : '?'}
@@ -338,7 +363,7 @@ export default function ProfilePage() {
                 >
                     <form className="w-full flex flex-col gap-5 items-center" onSubmit={setAvatar}>
                         {userData?.avatar ? (
-                            <img src={`${BASE_URL + userData.avatar}`} alt=""  className="w-20 h-20 rounded-full bg-main"/>
+                            <img src={`${BASE_URL + userData.avatar}`} alt="" className="w-20 h-20 rounded-full bg-main" />
                         ) : (
                             <div className="w-20 h-20 rounded-full bg-main text-4xl font-bold text-white flex items-center justify-center">
                                 {userData?.name ? userData.name[0] : '?'}
@@ -472,10 +497,10 @@ export default function ProfilePage() {
                     )}
                     <div className="col-span-1">подписчиков</div>
                     <div className="col-span-1">подписки</div>
-                    
+
                     <div className="col-span-1 font-bold">0</div>
                     <div className="col-span-1 font-bold">0</div>
-                    
+
                 </div>
             </div>
 
@@ -483,33 +508,30 @@ export default function ProfilePage() {
             <div className="flex justify-center gap-5 pt-5 border-b border-gray-200">
                 <button
                     onClick={() => setActiveTab('posts')}
-                    className={`pb-2 px-4 font-semibold transition-colors ${
-                        activeTab === 'posts' 
-                            ? 'text-main border-b-2 border-main' 
-                            : 'text-gray-500 hover:text-main'
-                    }`}
+                    className={`pb-2 px-4 font-semibold transition-colors ${activeTab === 'posts'
+                        ? 'text-main border-b-2 border-main'
+                        : 'text-gray-500 hover:text-main'
+                        }`}
                 >
                     Посты ({userData?.posts?.length || 0})
                 </button>
                 <button
                     onClick={() => setActiveTab('videos')}
-                    className={`pb-2 px-4 font-semibold transition-colors ${
-                        activeTab === 'videos' 
-                            ? 'text-main border-b-2 border-main' 
-                            : 'text-gray-500 hover:text-main'
-                    }`}
+                    className={`pb-2 px-4 font-semibold transition-colors ${activeTab === 'videos'
+                        ? 'text-main border-b-2 border-main'
+                        : 'text-gray-500 hover:text-main'
+                        }`}
                 >
                     Видео ({userData?.videos?.length || 0})
                 </button>
                 <button
                     onClick={() => setActiveTab('reposts')}
-                    className={`pb-2 px-4 font-semibold transition-colors ${
-                        activeTab === 'reposts' 
-                            ? 'text-main border-b-2 border-main' 
-                            : 'text-gray-500 hover:text-main'
-                    }`}
+                    className={`pb-2 px-4 font-semibold transition-colors ${activeTab === 'reposts'
+                        ? 'text-main border-b-2 border-main'
+                        : 'text-gray-500 hover:text-main'
+                        }`}
                 >
-                    Репосты (0)
+                    Репосты ({userData?.reposts?.length || 0})
                 </button>
             </div>
 

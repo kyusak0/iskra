@@ -19,6 +19,7 @@ return new class extends Migration
             $table->foreignId('author_id')->constrained('users')->cascadeOnDelete();
             $table->enum('type', ['public','private','friends_only'])->default('public');
             $table->string('url');
+            $table->string('commentable')->default('true');
             $table->timestamps();
         });
     }

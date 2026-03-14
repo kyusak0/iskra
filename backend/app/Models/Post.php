@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Post extends Model
 {
     protected $fillable = [
-        'title','desc','source_id','author_id','type','url'
+        'title','desc','source_id','author_id','type','url','commentable'
     ];
 
     public function source(){
@@ -31,5 +31,9 @@ class Post extends Model
     public function tags()
     {
         return $this->belongsToMany(Tag::class, 'tag_post', 'post_id', 'tag_id');
+    }
+
+    public function reposts(){
+        return $this->hasMany(Repost::class, 'post_id');
     }
 }

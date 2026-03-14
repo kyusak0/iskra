@@ -42,6 +42,39 @@ export default function Home() {
 
   const [file, setFile] = useState(null);
 
+  const generateChatUrl = (title) => {
+    const translit = (text) => {
+      const ru = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh',
+        'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
+        'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'ts',
+        'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu',
+        'я': 'ya'
+      };
+
+      return text.toLowerCase().split('').map(char => ru[char] || char).join('');
+    };
+
+    let url = translit(title)
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+
+    return `${url}-${timestamp}-${random}`;
+  };
+
+  const report = async (e, data, type) => {
+    e.preventDefault()
+    const reportData = {
+      desc: e.target.report_desc.value,
+      target: `${data.url}`
+    }
+    const res = await post('/create-report', reportData)
+  }
+
   const createPost = async (e) => {
     e.preventDefault();
 
@@ -57,8 +90,14 @@ export default function Home() {
         loadFile = await post('/load-file', formData);
       }
 
+      const url = generateChatUrl(creatingData.title)
 
-      const newData = { ...creatingData, author_id: user.id, source_id: loadFile?.data.id, tags: selectedTags }
+
+      const newData = {
+        ...creatingData, author_id: user.id, source_id: loadFile?.data.id,
+        tags: selectedTags,
+        url: url
+      }
 
       const result = await post('/create-post', newData);
 
@@ -107,6 +146,7 @@ export default function Home() {
         title: element.title,
         desc: element.desc,
         user: element.user,
+        url: element.url,
         author_id: element.author_id,
         author_name: element.user.name,
         avatar: element.user.avatar,
@@ -324,6 +364,8 @@ export default function Home() {
     );
   };
 
+
+
   return (
     <MainLayout alertMess={alert?.content} alertType={alert?.type}>
       <div className="w-full flex flex-col max-lg:flex-col-reverse">
@@ -499,16 +541,21 @@ export default function Home() {
                   href={`users/${post.author_id}`}
                   className="flex gap-5 items-center"
                 >
-                  <img src={`${BASE_URL + post.user?.avatar}`} alt="avaatr" className="rounded-full w-10 h-10"
-                  />
-                  {post.author_name}
+                  {post.user?.avatar ? (
+                            <img src={`${BASE_URL + post.user.avatar}`} alt=""  className="w-10 h-10 rounded-full bg-main"/>
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-main text-2xl font-bold text-white flex items-center justify-center">
+                                {post.user?.name ? post.user.name[0] : '?'}
+                            </div>
+                        )}
+                  {post.user.name}
                 </Link>
 
                 <p>
                   {post.created_at}
                 </p>
 
-                <a href={`/posts/${post.id}`}
+                <a href={`/posts/${post.url}`}
                   className="w-max btn bg-main rounded-md">Перейти</a>
 
                 {/* <ContextMenu
@@ -541,7 +588,7 @@ export default function Home() {
                   <Popup
                     openTrigger={<img src={`${BASE_URL}${post.source}` || 'no-media.png'} alt="" className="m-auto h-50 z-index-[-1] drop-shadow-xl" />
                     }>
-                  <img src={`${BASE_URL}${post.source}` || 'no-media.png'} alt="" className="m-auto mt-5 z-index-[-1] drop-shadow-xl hover:scale-[1.2] duration-300" />
+                    <img src={`${BASE_URL}${post.source}` || 'no-media.png'} alt="" className="m-auto mt-5 z-index-[-1] drop-shadow-xl hover:scale-[1.2] duration-300" />
 
                   </Popup>
                 ) : (post.source && post.source_type.includes('video/')) ? (
@@ -569,178 +616,6 @@ export default function Home() {
                   {post.desc}
                 </p>
               </div>
-
-
-              <Popup
-                id="comment"
-                openTrigger={
-                  <button
-                    onClick={() => getComments(post.id)}
-                    className="w-full border-t-2 border-main py-2 px-3 mt-5 hover:bg-gray-200 rounded-b-md text-left">Комментарии ({post.comments})</button>
-                }>
-                <div className="w-full flex flex-col">
-                  <h3 className="text-xl">
-                    Комментарии
-                  </h3>
-                  <div
-                    className="h-100 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                    {comments ? (
-                      comments.map((message) => (
-                        <div className={`w-full mb-5 ${selectedMess == message.id ? 'shadow-lg shadow-main/50' : ''}`}
-
-                          key={message.id} id={`${message.id}`}>
-                          <div className="flex flex-col items-start">
-                            <a
-                              href={`users/${message.user_id}`}
-                              className="grid grid-cols-3 grid-rows-2 "
-                            ><img alt="avaatr" className="rounded-full w-10 h-10 col-span-1 row-span-2 mr-5" />
-                              <p className="col-span-2 row-span-1">
-                                {message.user_name}
-                              </p>
-                              <p className="text-xs col-span-2 row-span-1">
-                                {message.created_at}
-                              </p>
-                            </a>
-                            <ContextMenu
-                              closing={closeContext}
-                              openTrigger={
-                                <>
-
-                                  {message.answer_content ? (
-                                    <div className='w-full'>
-                                      <a
-                                        href={`#${message.answer_id}`}
-                                        onClick={() => {
-                                          setCloseContext(true);
-                                        }}
-                                        className={`w-full block border-l-2 rounded-l-md p-2 mb-2 ${message.author_id === user?.id
-                                          ? 'bg-main/20 border-main'
-                                          : 'bg-gray-200 border-gray-500'
-                                          }`}
-                                      >
-                                        {message.answer_content}
-                                      </a>
-
-
-                                    </div>
-                                  ) : (null)}
-
-                                  {message.source ? (
-                                    <img src={`${BASE_URL}${message.source}`} alt="" className="m-auto w-full h-80" />
-                                  ) : (null)}
-                                  <p>
-                                    {message.content}
-                                  </p>
-                                </>
-                              }>
-                              <div className="flex flex-col gap-5">
-                                <div className="">
-                                  <label htmlFor="">
-                                    Пожаловаться
-                                  </label>
-                                  <input type="text"
-                                    className="border-2 border-main rounded-md w-full"
-                                    placeholder="Причина..." />
-                                  <button className='w-full text-left border-b-2 border-main'
-                                    onClick={() => {
-                                      setCloseContext(true)
-                                      setAnswer({
-                                        id: message.id,
-                                        content: message.content,
-                                      })
-                                    }}>Ответить</button>
-                                  <button
-                                    className='w-full text-left border-b-2 border-main'
-                                    onClick={() => deleteMess(message)}
-                                  >Удалить</button>
-                                  <button className='w-full text-left border-b-2 border-main'
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(message.content);
-                                      setCloseContext(true)
-                                    }}
-                                  >Копировать текст</button>
-                                  <button className='w-full text-left border-b-2 border-main'>Закрепить</button>
-
-                                  <Popup
-                                    openTrigger={
-                                      <button className='w-full text-left border-b-2 border-main'>Переслать</button>
-                                    }>
-                                    123
-                                  </Popup>
-                                </div>
-                              </div>
-                            </ContextMenu>
-                          </div>
-
-                        </div>
-                      ))
-                    ) : (
-                      'Нет комментариев'
-                    )}
-
-
-                  </div>
-
-
-                  <form onSubmit={(e) => handleSend(e, post.id)}
-                    className='w-full flex flex-col gap-2 mt-10'>
-                    {user ? (
-                      <>
-                        {answer ? (
-                          <div className="flex justify-between">
-                            <a href={`#${answer?.id}`}>{answer?.content}</a>
-                            <button onClick={() => { setAnswer(null) }}>❌</button>
-                          </div>
-                        ) : (null)}
-
-                        {file ? (
-                          <div className="flex justify-between">
-                            {file?.name}
-                            <button onClick={() => { setFile(null) }}>❌</button>
-                          </div>
-                        ) : (null)}
-
-                        <div className="flex w-full justify-start gap-10 items-center">
-                          <input
-                            type="text"
-                            value={content}
-                            name="content"
-                            onChange={(e) => setContent(e.target.value)}
-                            className='w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:border-main'
-                            placeholder="Комментировать..."
-                          />
-
-                          <input type="file" name="source_com" id="source_com" className="hidden"
-                            onChange={(e) => {
-                              if (e.target.files && e.target.files[0]) {
-                                setFile(e.target.files[0])
-                              }
-                            }}
-                          />
-                          <label htmlFor="source_com" className="text-4xl rotate-45">📎</label>
-
-                          <button
-                            type="submit"
-                            className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
-                            disabled={!(content.trim() || file)}
-                          >
-                            ➤
-                          </button></div>
-                      </>
-                    ) : (
-                      <p className="text-xl text-center">
-                        Для того чтобы оставить Комментарий, нужно войти в аккаунт
-                        <br />
-                        <a href="/login" className="text-main">
-                          Войти
-                        </a>
-                      </p>
-
-                    )}
-                  </form>
-
-                </div>
-              </Popup>
             </div>
           ))
           }

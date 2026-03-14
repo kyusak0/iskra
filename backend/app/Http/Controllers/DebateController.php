@@ -8,7 +8,10 @@ use Illuminate\Support\Facades\Route;
 
 use App\Models\Chat;
 use App\Models\Post;
+use App\Models\Video;
+
 use App\Models\Message;
+use App\Models\Repost;
 
 class DebateController extends Controller
 {
@@ -51,7 +54,7 @@ class DebateController extends Controller
     }
     
     public function getChatUrl($url){
-        $chat = Chat::where('url', $url)->with(['members', 'messages', 'messages.user','messages.source', 'owner'])->first();
+        $chat = Chat::where('url', $url)->with(['members', 'messages','messages.message', 'messages.user','messages.source', 'owner'])->first();
 
         return response()->json([
             'success' => true,
@@ -89,10 +92,10 @@ class DebateController extends Controller
     public function CreateChatPersonal(Request $request){
         $existing_chat = Chat::where('type', 'personal')
     ->whereHas('members', function ($query) use ($request) {
-        $query->where('users.id', $request->user_id); // Явно указываем таблицу
+        $query->where('users.id', $request->user_id); 
     })
     ->whereHas('members', function ($query) use ($request) {
-        $query->where('users.id', $request->other_user_id); // Явно указываем таблицу
+        $query->where('users.id', $request->other_user_id);
     })
     ->first();
 
@@ -130,24 +133,30 @@ class DebateController extends Controller
 
         $url = Route::current()->uri(); 
         if(str_contains($url, 'post')){
-            $data = Post::find($request->post_id);
+            $data = Post::findOrFail($request->post_id);
             $mess = $data->messages()->create(['content' => $request->content, 
             'author_id' => $request->author_id, 'type' => 'comment', 
             'answer_id' => $request->answer_id,
             'source_id' => $request->source_id]);
-        }else{
-            $data = Chat::find($request->chat_id);
+        }
+        else if(str_contains($url, 'video')){
+            $data = Video::findOrFail($request->video_id);
+            $mess = $data->messages()->create(['content' => $request->content, 
+            'author_id' => $request->author_id, 'type' => 'comment', 
+            'answer_id' => $request->answer_id,
+            'source_id' => $request->source_id]);
+        }
+        else{
+            $data = Chat::findOrFail($request->chat_id);
             $mess = $data->messages()->create(['content' => $request->content, 
             'author_id' => $request->author_id, 'type' => 'chat',
             'answer_id' => $request->answer_id,
             'source_id' => $request->source_id]);
         }
 
-        
-        
         if(!empty($data)){
             
-        $mess = Message::with(['user', 'message'])
+        $mess = Message::with(['user', 'message', 'source'])
         ->find($mess->id);
             return response()->json([
                 'success' => true,
@@ -162,6 +171,66 @@ class DebateController extends Controller
         ]);
     }
 
+    public function commentable(Request $request){
+        $url = Route::current()->uri(); 
+        if(str_contains($url, 'post')){
+            $data = Post::findOrFail($request->post_id);
+        }
+        else if(str_contains($url, 'video')){
+            $data = Video::findOrFail($request->video_id);
+        }
+        else{
+            $data = Chat::findOrFail($request->chat_id);
+        }
+
+        $data::query()->update([
+            'commentable' => $request->commentable
+        ]);
+
+        return response()->json([
+            'success' => true,
+        ]);
+    }
+
+    public function repost(Request $request){
+        $data = $request->validate([
+            'post_id' => 'required|integer',
+            'user_id' => 'required|exists:users,id',
+            'link' => 'required|string'
+        ]);
+
+        $existing_repost = Repost::where('user_id', $request->user_id)
+            ->where('link', $request->link)
+            ->first();
+
+        if(!empty($existing_repost)){
+            return response()->json([
+                'success' => true,
+                'data' => $existing_repost,
+                'message' => 'Repost already exists'
+            ]);
+        }
+
+        $repost = Repost::create([
+            'post_id' => $data['post_id'],
+            'user_id' => $data['user_id'],
+            'link' => $data['link']
+        ]);
+
+        if(!empty($repost)){
+            return response()->json([
+                'success' => true,
+                'data' => $repost,
+                'message' => 'Repost created successfully'
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to create repost'
+        ], 500);
+    }
+
     public function getMessages($id)
     {
         $url = Route::current()->uri(); 
@@ -173,6 +242,11 @@ class DebateController extends Controller
         } else if(str_contains($url, 'chat')){
             $messages = Message::where('messageable_id', $id)
                             ->where('messageable_type', 'App\Models\Chat')
+                            ->with(['user', 'message', 'message.user','source'])
+                            ->get();
+        }else if(str_contains($url, 'video')){
+            $messages = Message::where('messageable_id', $id)
+                            ->where('messageable_type', 'App\Models\Video')
                             ->with(['user', 'message', 'message.user','source'])
                             ->get();
         }

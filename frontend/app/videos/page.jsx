@@ -24,36 +24,36 @@ export default function Videos() {
             const video = document.createElement('video');
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
-            
+
             video.preload = 'metadata';
-            
+
             video.onloadeddata = () => {
                 // Устанавливаем размеры canvas равными размерам видео
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
-                
+
                 // Рисуем первый кадр на canvas
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
+
                 // Конвертируем canvas в blob (файл)
                 canvas.toBlob((blob) => {
                     // Создаем файл из blob
                     const frameFile = new File([blob], 'video-frame.jpg', { type: 'image/jpeg' });
-                    
+
                     // Очищаем ресурсы
                     URL.revokeObjectURL(video.src);
-                    
+
                     resolve(frameFile);
                 }, 'image/jpeg', 0.9); // Качество 90%
             };
-            
+
             video.onerror = () => {
                 URL.revokeObjectURL(video.src);
                 reject(new Error('Не удалось загрузить видео для извлечения кадра'));
             };
-            
+
             video.src = URL.createObjectURL(videoFile);
-            
+
             // Устанавливаем время на 1 секунду для более интересного кадра
             video.currentTime = 1;
         });
@@ -63,20 +63,44 @@ export default function Videos() {
         return new Promise((resolve, reject) => {
             const video = document.createElement('video');
             video.preload = 'metadata';
-            
+
             video.onloadedmetadata = () => {
                 URL.revokeObjectURL(video.src);
                 const duration = Math.round(video.duration);
                 resolve(duration);
             };
-            
+
             video.onerror = () => {
                 URL.revokeObjectURL(video.src);
                 reject(new Error('Не удалось загрузить метаданные видео'));
             };
-            
+
             video.src = URL.createObjectURL(file);
         });
+    };
+
+    const generateChatUrl = (title) => {
+        const translit = (text) => {
+            const ru = {
+                'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh',
+                'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
+                'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'ts',
+                'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu',
+                'я': 'ya'
+            };
+
+            return text.toLowerCase().split('').map(char => ru[char] || char).join('');
+        };
+
+        let url = translit(title)
+            .replace(/[^a-z0-9]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+
+        const timestamp = Date.now().toString(36);
+        const random = Math.random().toString(36).substring(2, 8);
+
+        return `${url}-${timestamp}-${random}`;
     };
 
     // Обновленная функция createVideo
@@ -96,7 +120,7 @@ export default function Videos() {
             }
 
             const durationInSeconds = await getVideoDuration(video);
-            
+
             const minutes = Math.floor(durationInSeconds / 60);
             const seconds = Math.floor(durationInSeconds % 60);
             const formattedDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -123,16 +147,16 @@ export default function Videos() {
             } else {
                 try {
                     setAlert({ content: 'Извлечение обложки из видео...', type: 'info' });
-                    
+
                     const frameFile = await extractFrameFromVideo(video);
-                    
+
                     const coverFormData = {
                         file: frameFile,
                         author_id: user.id
                     };
                     const loadFile = await post('/load-file', coverFormData);
                     cover_id = loadFile.data.id;
-                    
+
                     setAlert({ content: 'Обложка успешно извлечена из видео', type: 'success' });
                 } catch (frameError) {
                     console.error('Ошибка извлечения кадра:', frameError);
@@ -140,6 +164,8 @@ export default function Videos() {
                     return;
                 }
             }
+
+            const url = generateChatUrl(creatingData.title);
 
             // Создаем видео с обложкой
             const videoData = {
@@ -150,18 +176,19 @@ export default function Videos() {
                 duration: formattedDuration,
                 tags: selectedTags,
                 author_id: user.id,
+                url: url
             };
 
             const res = await post('/create-video', videoData);
             console.log(res);
-            
+
             setFile(null);
             setVideo(null);
             setCreatingData({ title: '', desc: '' });
             setSelectedTags([]);
-            
+
             getVideos(false);
-            
+
             setAlert({ content: 'Видео успешно создано!', type: 'success' });
 
         } catch (error) {
@@ -205,7 +232,8 @@ export default function Videos() {
                 author: el.source.user,
                 title: el.title,
                 tags: el.tags,
-                views: el.views_count
+                views: el.views_count,
+                url: el.url
             };
 
             console.log(newRecord);
@@ -274,7 +302,7 @@ export default function Videos() {
             setVideos(videosOrig);
         }
     };
-    
+
     return (
         <MainLayout alertMess={alert?.content} alertType={alert?.type}>
             <div className="w-full flex flex-col max-lg:flex-col-reverse">
@@ -319,7 +347,7 @@ export default function Videos() {
                                 <h3 className="text-xl font-bold">
                                     Создать Видео
                                 </h3>
-                                
+
                                 {/* Обложка (необязательно) */}
                                 <input type="file" name="cover" id="cover" className="hidden"
                                     onChange={(e) => {
@@ -336,7 +364,7 @@ export default function Videos() {
                                     {file?.name && (
                                         <span className="text-sm text-gray-600">
                                             Выбрано: {file.name}
-                                            <button 
+                                            <button
                                                 type="button"
                                                 onClick={() => setFile(null)}
                                                 className="ml-2 text-red-500 hover:text-red-700"
@@ -376,7 +404,7 @@ export default function Videos() {
                                     placeholder="Название..."
                                     value={creatingData?.title}
                                     required />
-                                
+
                                 <textarea
                                     name="desc"
                                     className="px-3 py-2 border-2 border-main rounded-md resize-none"
@@ -429,7 +457,7 @@ export default function Videos() {
                                     </div>
                                 </div>
 
-                                <button 
+                                <button
                                     type="submit"
                                     className="px-3 py-2 bg-main hover:opacity-80 rounded-md text-bg uppercase font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                                     disabled={!video || !creatingData.title}
@@ -450,10 +478,10 @@ export default function Videos() {
                 <div className="grid grid-cols-3 my-5 max-h-[65vh] overflow-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] gap-10">
                     {videos.length > 0 ? (
                         videos.map(vid => (
-                            <a href={`/videos/${vid.id}`} className="col-span-1 max-lg:col-span-3 border-2 border-main rounded-lg hover:shadow-lg transition-shadow" key={vid.id}>
+                            <a href={`/videos/${vid.url}`} className="col-span-1 max-lg:col-span-3 border-2 border-main rounded-lg hover:shadow-lg transition-shadow" key={vid.id}>
                                 <div className="relative">
-                                    <img 
-                                        src={`${BASE_URL + vid.cover}`} 
+                                    <img
+                                        src={`${BASE_URL + vid.cover}`}
                                         alt={vid.title || "Обложка видео"}
                                         onError={(e) => {
                                             e.target.onerror = null;
@@ -496,7 +524,7 @@ export default function Videos() {
                         </div>
                     )}
                 </div>
-                
+
                 {videos.length > 0 && currentPage < lastPage && (
                     <button
                         onClick={getVideos}

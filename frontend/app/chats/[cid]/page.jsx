@@ -87,21 +87,21 @@ export default function Chat({ chat_id, chat_url }) {
     // Загрузка данных чата
     const loadChatData = useCallback(async () => {
         if (!chatIdentifier || !user || isInitialized.current) return;
-        
+
         try {
             setIsLoading(true);
-            
-            const endpoint = isNaN(chatIdentifier) 
+
+            const endpoint = isNaN(chatIdentifier)
                 ? `/get-chat-by-url/${chatIdentifier}`
                 : `/get-chat-info/${chatIdentifier}`;
-            
+
             const res = await get(endpoint);
-            
+
             if (res?.data) {
                 // Для personal чата находим второго участника
                 let chatTitle = res.data.title;
                 let chatAvatar = res.data.avatar;
-                
+
                 if (res.data.type === 'personal' && res.data.members) {
                     const otherMember = res.data.members.find(m => m.id !== user?.id);
                     if (otherMember) {
@@ -109,13 +109,13 @@ export default function Chat({ chat_id, chat_url }) {
                         chatAvatar = otherMember.avatar;
                     }
                 }
-                
+
                 setChatData({
                     ...res.data,
                     displayTitle: chatTitle,
-                    displayAvatar: chatAvatar
+                    displayAvatar: chatAvatar,
                 });
-                
+
                 const formattedMessages = (res.data.messages || []).map(msg => ({
                     id: msg.id,
                     author_id: msg.author_id,
@@ -132,12 +132,12 @@ export default function Chat({ chat_id, chat_url }) {
                     answer_id: msg?.message?.id,
                     is_pinned: msg.is_pinned || false
                 }));
-                
+
                 setMessages(formattedMessages);
-                setPinnedMessages(formattedMessages.filter(m => m.is_pinned));
-                
+                setPinnedMessages(formattedMessages.filter(m => m.is_pinned == 'true'));
+
                 setIsMember(res.data.members?.some(m => m.id === user?.id) || false);
-                
+
                 isInitialized.current = true;
             }
         } catch (err) {
@@ -147,7 +147,7 @@ export default function Chat({ chat_id, chat_url }) {
         }
     }, [chatIdentifier, user, get]);
 
-    // Загрузка списка чатов
+    // Загрузка списка чатов - нужно для перессылки
     const loadAvailableChats = useCallback(async () => {
         try {
             const res = await get("/get-chats");
@@ -170,11 +170,11 @@ export default function Chat({ chat_id, chat_url }) {
         if (heartbeatInterval.current) {
             clearInterval(heartbeatInterval.current);
         }
-        
+
         heartbeatInterval.current = setInterval(() => {
             if (wsRef.current?.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({ type: 'ping' }));
-                
+
                 if (Date.now() - lastPongRef.current > 15000) {
                     console.log('No pong received, reconnecting...');
                     wsRef.current.close();
@@ -201,16 +201,16 @@ export default function Chat({ chat_id, chat_url }) {
                 setIsConnected(true);
                 reconnectAttempts = 0;
                 lastPongRef.current = Date.now();
-                
+
                 startHeartbeat();
-                
+
                 ws.send(JSON.stringify({
                     type: 'join_chat',
                     user_id: user.id,
                     user_name: user.name,
                     chat_id: chatData.id
                 }));
-                
+
                 // Запрашиваем список онлайн пользователей только для групповых чатов
                 if (chatData.type !== 'personal') {
                     ws.send(JSON.stringify({
@@ -223,12 +223,12 @@ export default function Chat({ chat_id, chat_url }) {
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    
+
                     switch (data.type) {
                         case 'pong':
                             lastPongRef.current = Date.now();
                             break;
-                            
+
                         case 'online_users':
                             // Обновляем онлайн пользователей только для групповых чатов
                             if (chatData.type !== 'personal') {
@@ -236,7 +236,7 @@ export default function Chat({ chat_id, chat_url }) {
                                 setOnlineUsers(data.users || []);
                             }
                             break;
-                            
+
                         case 'user_online':
                             // Обновляем онлайн пользователей только для групповых чатов
                             if (chatData.type !== 'personal') {
@@ -248,14 +248,14 @@ export default function Chat({ chat_id, chat_url }) {
                                 });
                             }
                             break;
-                            
+
                         case 'user_offline':
                             // Обновляем онлайн пользователей только для групповых чатов
                             if (chatData.type !== 'personal') {
                                 setOnlineUsers(prev => prev.filter(u => u.id !== data.user_id));
                             }
                             break;
-                            
+
                         case 'typing_start':
                             setTypingUsers(prev => {
                                 if (!prev.includes(data.user_name)) {
@@ -264,16 +264,16 @@ export default function Chat({ chat_id, chat_url }) {
                                 return prev;
                             });
                             break;
-                            
+
                         case 'typing_stop':
                             setTypingUsers(prev => prev.filter(name => name !== data.user_name));
                             break;
-                            
+
                         case 'new_message':
                             if (data.message) {
                                 setMessages(prev => {
                                     if (prev.some(m => m.id === data.message.id)) return prev;
-                                    
+
                                     const newMess = {
                                         id: data.message.id,
                                         author_id: data.message.author_id,
@@ -286,7 +286,7 @@ export default function Chat({ chat_id, chat_url }) {
                                         answer_content: data.message.answer_content,
                                         is_pinned: data.message.is_pinned || false
                                     };
-                                    
+
                                     return [...prev, newMess];
                                 });
                             }
@@ -356,20 +356,20 @@ export default function Chat({ chat_id, chat_url }) {
                 console.log('WebSocket disconnected');
                 setIsConnected(false);
                 setOnlineUsers([]);
-                
+
                 if (heartbeatInterval.current) {
                     clearInterval(heartbeatInterval.current);
                     heartbeatInterval.current = null;
                 }
-                
+
                 if (reconnectAttempts < maxReconnectAttempts) {
                     reconnectAttempts++;
                     const timeout = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 30000);
-                    
+
                     if (wsReconnectTimeout.current) {
                         clearTimeout(wsReconnectTimeout.current);
                     }
-                    
+
                     console.log(`Reconnecting in ${timeout}ms (attempt ${reconnectAttempts})`);
                     wsReconnectTimeout.current = setTimeout(connectWebSocket, timeout);
                 }
@@ -387,12 +387,12 @@ export default function Chat({ chat_id, chat_url }) {
                 clearInterval(heartbeatInterval.current);
                 heartbeatInterval.current = null;
             }
-            
+
             if (wsReconnectTimeout.current) {
                 clearTimeout(wsReconnectTimeout.current);
                 wsReconnectTimeout.current = null;
             }
-            
+
             if (wsRef.current) {
                 if (wsRef.current.readyState === WebSocket.OPEN) {
                     wsRef.current.send(JSON.stringify({
@@ -405,7 +405,7 @@ export default function Chat({ chat_id, chat_url }) {
                 wsRef.current.close();
                 wsRef.current = null;
             }
-            
+
             if (peerRef.current) {
                 peerRef.current.close();
                 peerRef.current = null;
@@ -418,7 +418,6 @@ export default function Chat({ chat_id, chat_url }) {
         };
     }, [chatData?.id, user?.id, isMember, startHeartbeat, chatData?.type]);
 
-    // Отправка статуса печатания
     const handleTyping = useCallback(
         debounce((isTyping) => {
             if (wsRef.current?.readyState === WebSocket.OPEN && isConnected) {
@@ -436,7 +435,7 @@ export default function Chat({ chat_id, chat_url }) {
     const handleInputChange = (e) => {
         const value = e.target.value;
         setContent(value);
-        
+
         if (value.trim()) {
             handleTyping(true);
         } else {
@@ -676,7 +675,7 @@ export default function Chat({ chat_id, chat_url }) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
-            
+
             const mediaRecorder = new MediaRecorder(stream);
             mediaRecorderRef.current = mediaRecorder;
 
@@ -768,13 +767,13 @@ export default function Chat({ chat_id, chat_url }) {
             });
 
             setIsMember(true);
-            
+
             const res = await get(`/get-chat-info/${chatData.id}`);
             if (res?.data) {
                 // Обновляем данные с учетом personal чата
                 let chatTitle = res.data.title;
                 let chatAvatar = res.data.avatar;
-                
+
                 if (res.data.type === 'personal' && res.data.members) {
                     const otherMember = res.data.members.find(m => m.id !== user?.id);
                     if (otherMember) {
@@ -782,7 +781,7 @@ export default function Chat({ chat_id, chat_url }) {
                         chatAvatar = otherMember.avatar;
                     }
                 }
-                
+
                 setChatData({
                     ...res.data,
                     displayTitle: chatTitle,
@@ -801,7 +800,7 @@ export default function Chat({ chat_id, chat_url }) {
                 audio: true,
                 video: type === 'video'
             });
-            
+
             localStreamRef.current = stream;
 
             if (type === 'video' && localVideoRef.current) {
@@ -926,14 +925,14 @@ export default function Chat({ chat_id, chat_url }) {
                     {/* Header */}
                     <div className="bg-bg fixed w-full z-10 border-b-2 border-main p-4 flex items-center justify-between">
                         <a href="/chats" className='uppercase text-main font-bold'>назад</a>
-                        
+
                         <Popup
                             openTrigger={
                                 <div className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors">
                                     {chatData.displayAvatar ? (
-                                        <img 
-                                            src={`${BASE_URL}${chatData.displayAvatar}`} 
-                                            alt="" 
+                                        <img
+                                            src={`${BASE_URL}${chatData.displayAvatar}`}
+                                            alt=""
                                             className="w-10 h-10 rounded-full object-cover"
                                         />
                                     ) : (
@@ -988,9 +987,9 @@ export default function Chat({ chat_id, chat_url }) {
                                             <div key={member.id} className="flex items-center justify-between p-2 hover:bg-gray-100 rounded-lg">
                                                 <Link href={`/users/${member.id}`} className="flex items-center gap-3 flex-1">
                                                     {member.avatar ? (
-                                                        <img 
-                                                            src={`${BASE_URL}${member.avatar}`} 
-                                                            alt="" 
+                                                        <img
+                                                            src={`${BASE_URL}${member.avatar}`}
+                                                            alt=""
                                                             className="w-10 h-10 rounded-full object-cover"
                                                         />
                                                     ) : (
@@ -1021,9 +1020,9 @@ export default function Chat({ chat_id, chat_url }) {
                                             <div key={member.id} className="flex items-center justify-between p-2 hover:bg-gray-100 rounded-lg">
                                                 <Link href={`/users/${member.id}`} className="flex items-center gap-3 flex-1">
                                                     {member.avatar ? (
-                                                        <img 
-                                                            src={`${BASE_URL}${member.avatar}`} 
-                                                            alt="" 
+                                                        <img
+                                                            src={`${BASE_URL}${member.avatar}`}
+                                                            alt=""
                                                             className="w-10 h-10 rounded-full object-cover"
                                                         />
                                                     ) : (
@@ -1034,7 +1033,7 @@ export default function Chat({ chat_id, chat_url }) {
                                                     <div>
                                                         <p className="font-semibold">{member.name || 'Пользователь'}</p>
                                                         <p className="text-xs text-gray-500">
-                                                            {member.id === chatData.created_by ? 'Создатель' : 'Участник'}
+                                                            {member.id === chatData.owner_id ? 'Создатель' : 'Участник'}
                                                         </p>
                                                     </div>
                                                 </Link>
@@ -1200,8 +1199,10 @@ export default function Chat({ chat_id, chat_url }) {
 
                     {/* Messages */}
                     <div className={`flex-1 overflow-y-auto p-4 messages-container ${callActive && callType === 'video' ? 'mt-[calc(73px+16rem)]' : 'mt-[73px]'} mb-24`}>
-                        {messages.length === 0 ? (
-                            <p 
+                        {chatData.commentable !== 'true' ? (
+                            'Комментарии отключены'
+                        ) : messages.length === 0 ? (
+                            <p
                                 className="text-gray-500 text-center p-4 cursor-pointer hover:text-gray-700"
                                 onClick={() => setContent('Здравствуйте')}
                             >
@@ -1222,13 +1223,11 @@ export default function Chat({ chat_id, chat_url }) {
                                         id={`${message.id}`}
                                     >
                                         <div
-                                            className={`max-w-[70%] ${
-                                                message.author_id === user?.id
-                                                    ? 'bg-sec'
-                                                    : 'bg-main/30'
-                                            } rounded-lg p-3 ${
-                                                message.is_pinned == 'true' ? 'border-2 border-yellow-400' : ''
-                                            } ${message.isSending ? 'opacity-70' : ''}`}
+                                            className={`max-w-[70%] ${message.author_id === user?.id
+                                                ? 'bg-sec'
+                                                : 'bg-main/30'
+                                                } rounded-lg p-3 ${message.is_pinned == 'true' ? 'border-2 border-yellow-400' : ''
+                                                } ${message.isSending ? 'opacity-70' : ''}`}
                                         >
                                             <div className="w-full">
                                                 {message.author_id !== user?.id && (
@@ -1252,7 +1251,7 @@ export default function Chat({ chat_id, chat_url }) {
                                                             : message.answer_content}
                                                     </div>
                                                 )}
-                                                
+
                                                 <ContextMenu
                                                     closing={closeContext}
                                                     openTrigger={
@@ -1325,15 +1324,12 @@ export default function Chat({ chat_id, chat_url }) {
                                                         >
                                                             Копировать текст
                                                         </button>
-
-                                                        {message.author_id === user?.id && (
-                                                            <button
-                                                                className="px-3 py-2 hover:bg-gray-100 text-left text-red-600"
-                                                                onClick={() => deleteMess(message)}
-                                                            >
-                                                                Удалить
-                                                            </button>
-                                                        )}
+                                                        <button
+                                                            className="px-3 py-2 hover:bg-gray-100 text-left text-red-600"
+                                                            onClick={() => deleteMess(message)}
+                                                        >
+                                                            Удалить
+                                                        </button>
                                                     </div>
                                                 </ContextMenu>
 
@@ -1357,7 +1353,7 @@ export default function Chat({ chat_id, chat_url }) {
                             <div className="p-4 border-t bg-gray-50">
                                 <div className="flex justify-between items-center mb-2">
                                     <h3 className="font-bold">Переслать {forwardMessages.length} сообщений</h3>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             setForwardMessages([]);
                                             setShowForwardSelector(false);
@@ -1441,6 +1437,7 @@ export default function Chat({ chat_id, chat_url }) {
                                             onChange={(e) => {
                                                 if (e.target.files?.[0]) {
                                                     setFile(e.target.files[0]);
+                                                    e.target.value = ''
                                                 }
                                             }}
                                         />
@@ -1456,11 +1453,10 @@ export default function Chat({ chat_id, chat_url }) {
                                 <button
                                     type="button"
                                     onClick={isRecording ? stopRecording : startRecording}
-                                    className={`p-2 rounded-md ${
-                                        isRecording 
-                                            ? 'bg-red-500 text-white animate-pulse hover:bg-red-600' 
-                                            : 'bg-gray-100 hover:bg-gray-200'
-                                    }`}
+                                    className={`p-2 rounded-md ${isRecording
+                                        ? 'bg-red-500 text-white animate-pulse hover:bg-red-600'
+                                        : 'bg-gray-100 hover:bg-gray-200'
+                                        }`}
                                 >
                                     {isRecording ? '⏹️' : '🎤'}
                                 </button>

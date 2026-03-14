@@ -129,7 +129,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from '../lib/axios';
-import { useRouter } from 'next/navigation';
+import { notFound, useRouter } from 'next/navigation';
 import Alert from '../components/alert/Alert';
 
 const AuthContext = createContext({});
@@ -334,7 +334,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // Для JSON-запросов (логин, 2FA, обычные формы)
     const post = async (link, data) => {
         try {
             const response = await axios.post(link, data, {
@@ -412,6 +411,14 @@ export const AuthProvider = ({ children }) => {
         return (
             <div className="flex justify-center items-center min-h-screen">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-main"></div>
+            </div>
+        );
+    }
+
+    if(user?.is_blocked == 'true'){
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-3xl text-main">Ваш аккаунт был заблокирован</div>
             </div>
         );
     }

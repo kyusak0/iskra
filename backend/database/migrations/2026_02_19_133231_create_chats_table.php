@@ -13,12 +13,13 @@ return new class extends Migration
     {
         Schema::create('chats', function (Blueprint $table) {
             $table->id();
-            $table->string('title');
+            $table->string('title')->nullable();
             $table->string('bio')->nullable();
             $table->foreignId('owner_id')->constrained('users')->cascadeOnDelete();
             $table->enum('type', ['public','private','personal'])->default('public');
             $table->string('avatar')->nullable();
             $table->string('url')->nullable();
+            $table->string('commentable')->default('true');
             $table->timestamps();
         });
     }

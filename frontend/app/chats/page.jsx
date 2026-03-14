@@ -213,7 +213,6 @@ export default function Friends() {
         }
     };
 
-    // Копирование ссылки в буфер обмена
     const copyChatLink = (url) => {
         const fullUrl = `${window.location.origin}/chats/${url}`;
         navigator.clipboard.writeText(fullUrl);
@@ -316,7 +315,7 @@ export default function Friends() {
                                             </div>
                                         </label>
 
-                                        <label className="flex items-center gap-3 p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+                                        {/* <label className="flex items-center gap-3 p-3 border rounded-md cursor-pointer hover:bg-gray-50">
                                             <input
                                                 type="radio"
                                                 name="type"
@@ -331,7 +330,7 @@ export default function Friends() {
                                                     Чат для общения с конкретным пользователем.
                                                 </p>
                                             </div>
-                                        </label>
+                                        </label> */}
                                     </div>
                                 </div>
 
@@ -430,6 +429,16 @@ export default function Friends() {
                                     }`}
                             >
                                 Приватные
+                            </button>
+
+                            <button
+                                onClick={() => setSearchType('personal')}
+                                className={`px-3 py-1 rounded-full text-sm ${searchType === 'personal'
+                                        ? 'bg-main text-white'
+                                        : 'bg-gray-200 hover:bg-gray-300'
+                                    }`}
+                            >
+                                Личные
                             </button>
                         </div>
 

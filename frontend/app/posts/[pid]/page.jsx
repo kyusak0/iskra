@@ -23,20 +23,32 @@ export default function ProfilePage() {
         getPostInfo(params.pid);
     }, []);
 
+    const commentability = async () => {
+        const data = {
+            post_id: postData.id,
+            commentable: postData.commentable == 'false' ? 'true' : 'false'
+        }
+        const res = await post('/commentable/post', data);
+        window.location.reload()
+    }
+
     const getPostInfo = async (postId) => {
         try {
             const res = await get('/get-post/' + postId);
+            console.log(res)
             if (res.success) {
                 setPostData({
+                    id: res.data.id,
                     title: res.data.title,
                     desc: res.data.desc,
-                    source: res.data.source,
-                    comments: res.data.messages,
+                    source: res.data.source?.name,
                     author: res.data.user,
-                    tags: res.data.tags
+                    messages: res.data.messages || [],
+                    commentable: res.data.commentable || 'false',
+                    url: res.data.url
                 });
 
-                console.log(res)
+
             } else {
 
             }
@@ -64,29 +76,26 @@ export default function ProfilePage() {
 
             const newData = {
                 author_id: user.id,
-                post_id: params.pid,
+                post_id: postData.id,
                 content: content,
                 answer_id: answer?.id,
                 source_id: loadFile?.data.id
             };
 
-
-
-            const res = await post("/send-message/post", newData);
+            const res = await post(`/send-message/post/${postData.id}`, newData);
             console.log(res)
 
             setPostData({
                 ...postData,
-                comments: [
-                    ...(postData.comments || []),
+                messages: [
+                    ...(postData.messages || []),
                     {
                         id: res.data.id,
                         content: res.data.content,
-                        answer_id: res.data.answer_id,
+                        message: res.data.message,
                         created_at: new Date(res.data.created_at).toLocaleDateString(),
-                        source: loadFile?.data.name,
-                        user_id: res.data.author_id,
-                        user_name: res.data?.user?.name || 'loading...',
+                        source: res.data.source,
+                        user: res.data.user,
                     }
                 ]
             });
@@ -130,6 +139,66 @@ export default function ProfilePage() {
     const [file, setFile] = useState()
     const [content, setContent] = useState("");
 
+    const reportMessage = async (message, desc) => {
+        if (!desc.trim()) {
+            return;
+        }
+
+        try {
+            const reportData = {
+                desc: desc,
+                target: `comment_${message.id}_post_${postData?.id}_user_${message.user.id}`
+            };
+
+            const response = await post('/create-report', reportData);
+
+        } catch (error) {
+            console.error('Ошибка при отправке жалобы:', error);
+        }
+    };
+
+    // Функция удаления комментария
+    const deleteMessage = async (message) => {
+        try {
+            const response = await post('/delete-message', { id: message.id });
+
+            if (response.success) {
+                // Обновляем список комментариев
+                setComments(prev => prev.filter(c => c.id !== message.id));
+            }
+        } catch (error) {
+            console.error('Ошибка при удалении комментария:', error);
+            alert('Не удалось удалить комментарий');
+        }
+    };
+
+    // Функция закрепления комментария
+    const pinMessage = async (message) => {
+        try {
+            const response = await post('/pin-message', {
+                id: message.id,
+                post_id: postData?.id
+            });
+
+            if (response.success) {
+                alert('Комментарий закреплен');
+            }
+        } catch (error) {
+            console.error('Ошибка при закреплении комментария:', error);
+            alert('Не удалось закрепить комментарий');
+        }
+    };
+
+    const repost = async () => {
+        const data = {
+            post_id: postData.id,
+            user_id: user.id,
+            link: `/posts/${postData.url}`
+        }
+
+        await post('/repost', data)
+    }
+
     return (
         <MainLayout>
             {!loading && (
@@ -140,8 +209,6 @@ export default function ProfilePage() {
                             {/* Media section */}
                             {postData?.source ? (
                                 postData.source?.type?.includes('image') ? (
-
-
                                     <Popup
                                         openTrigger={
                                             <img
@@ -157,8 +224,8 @@ export default function ProfilePage() {
                                             loading="lazy"
                                         />
                                     </Popup>
-                                ) : postData.source?.type?.includes('video') ? (
-                                    <video
+                                ) : postData.source?.type?.includes('postData') ? (
+                                    <postData
                                         src={`${BASE_URL}${postData.source.name}`}
                                         controls
                                         className="m-auto w-2/4 max-h-96"
@@ -192,6 +259,23 @@ export default function ProfilePage() {
                                 </ul>
                             )}
 
+                            <div className="flex justify-between ">
+
+                                {postData?.title && (
+                                    <a href={`/users/${postData.author.id}`} className="text-xl flex items-center gap-2 font-semibold leading-tight">
+                                        {postData.author?.avatar ? (
+                                            <img src={`${BASE_URL + postData.author.avatar}`} alt="" className="w-10 h-10 rounded-full bg-main cursor-pointer hover:opacity-80 transition-opacity" />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full bg-main text-2xl font-bold text-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                                                {postData.author?.name ? postData.author.name[0] : '?'}
+                                            </div>
+                                        )}
+                                        {postData.author.name}
+                                    </a>
+                                )}
+
+                                <button onClick={repost} className="w-max btn rounded-md">Репост</button></div>
+
                             {/* Title */}
                             {postData?.title && (
                                 <h3 className="text-3xl font-semibold leading-tight">
@@ -211,164 +295,277 @@ export default function ProfilePage() {
                         <h3 className="text-xl mb-5">
                             Комментарии
                         </h3>
-                        <div
-                            className="lg:h-100 lg:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-lg:mb-10">
-                            {postData?.comments.map((message) => (
-                                <div className={`w-full mb-5 ${selectedMess == message.id ? 'shadow-lg shadow-main/50' : ''}`}
+                        {postData?.commentable == 'true' && (<button onClick={commentability}
+                            className="btn rounded-md">Отключить</button>)}
 
-                                    key={message.id} id={`${message.id}`}>
-                                    <div className="flex flex-col items-start">
-                                        <a
-                                            href={`users/${message.user.id}`}
-                                            className="grid grid-cols-3 grid-rows-2 flex items-center"
-                                        > {message.user.avatar ? (
-                                            <img href={`${BASE_URL + message.user?.avatar}`} alt="avaatr" className="rounded-full w-10 h-10 col-span-1 row-span-2 mr-5" />
-
-                                        ) : (
-                                            <div className="w-10 h-10 rounded-full bg-main text-2xl font-bold text-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
-                                                {message.user.name[0]}
-                                            </div>
-                                        )}   <p className="col-span-2 row-span-1">
-                                                {message.user.name}
-                                            </p>
-                                            <p className="text-xs col-span-2 row-span-1">
-                                                {new Date(message.created_at).toLocaleString()}
-                                            </p>
-                                        </a>
-                                        <ContextMenu
-                                            closing={closeContext}
-                                            openTrigger={
-                                                <div className="w-full block">
-
-                                                    {message.message?.content ? (
-                                                        <div className='w-full'>
-                                                            <a
-                                                                href={`#${message.message?.id}`}
-                                                                onClick={() => {
-                                                                    setCloseContext(true);
-                                                                }}
-                                                                className={`w-full block border-l-2 rounded-l-md p-2 mb-2 ${message.author_id === user?.id
-                                                                    ? 'bg-main/20 border-main'
-                                                                    : 'bg-gray-200 border-gray-500'
-                                                                    }`}
-                                                            >
-                                                                {message.message?.content}
-                                                            </a>
-
-
-                                                        </div>
-                                                    ) : (null)}
-
-                                                    {message.source ? (
-                                                        <img src={`${BASE_URL + message.source.name}`} alt="" className="m-auto w-full" />
-                                                    ) : (null)}
-                                                    <p>
-                                                        {message.content}
-                                                    </p>
-                                                </div>
-                                            }>
-                                            <div className="flex flex-col gap-5">
-                                                <div className="">
-                                                    <label htmlFor="">
-                                                        Пожаловаться
-                                                    </label>
-                                                    <input type="text"
-                                                        className="border-2 border-main rounded-md w-full"
-                                                        placeholder="Причина..." />
-                                                    <button className='w-full text-left border-b-2 border-main'
-                                                        onClick={() => {
-                                                            setCloseContext(true)
-                                                            setAnswer({
-                                                                id: message.id,
-                                                                content: message.content,
-                                                            })
-                                                        }}>Ответить</button>
-                                                    <button
-                                                        className='w-full text-left border-b-2 border-main'
-                                                        onClick={() => deleteMess(message)}
-                                                    >Удалить</button>
-                                                    <button className='w-full text-left border-b-2 border-main'
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(message.content);
-                                                            setCloseContext(true)
-                                                        }}
-                                                    >Копировать текст</button>
-                                                    <button className='w-full text-left border-b-2 border-main'>Закрепить</button>
-
-                                                    <Popup
-                                                        openTrigger={
-                                                            <button className='w-full text-left border-b-2 border-main'>Переслать</button>
-                                                        }>
-                                                        123
-                                                    </Popup>
-                                                </div>
-                                            </div>
-                                        </ContextMenu>
-                                    </div>
-
-                                </div>
-                            ))}
-                        </div>
-
-                        <form onSubmit={handleSend}
-                            className='w-full flex flex-col gap-2 mt-10 max-lg:fixed  max-lg:bg-bg max-lg:bottom-0'>
-                            {user ? (
-                                <>
-                                    {answer ? (
-                                        <div className="flex justify-between">
-                                            <a href={`#${answer?.id}`}>{answer?.content}</a>
-                                            <button onClick={() => { setAnswer(null) }}>❌</button>
-                                        </div>
-                                    ) : (null)}
-
-                                    {file ? (
-                                        <div className="flex justify-between">
-                                            {file?.name}
-                                            <button onClick={() => { setFile(null) }}>❌</button>
-                                        </div>
-                                    ) : (null)}
-
-                                    <div className="flex w-full justify-start gap-10 items-center">
-                                        <input
-                                            type="text"
-                                            value={content}
-                                            name="content"
-                                            onChange={(e) => setContent(e.target.value)}
-                                            className='w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:border-main'
-                                            placeholder="Комментировать..."
-                                        />
-
-                                        <input type="file" name="source_com" id="source_com" className="hidden"
-                                            onChange={(e) => {
-                                                if (e.target.files && e.target.files[0]) {
-                                                    setFile(e.target.files[0])
-                                                }
-                                            }}
-                                        />
-                                        <label htmlFor="source_com" className="text-4xl rotate-45">📎</label>
-
-                                        <button
-                                            type="submit"
-                                            className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
-                                            disabled={!(content.trim() || file)}
+                        {postData?.commentable !== 'true' ? (
+                            <div className=" flex flex-col gap-5 items-center"><p>Комментарии отключены</p>
+                                {postData?.author.id == user.id && (
+                                    <button onClick={commentability}
+                                        className="btn rounded-md">Включить</button>)}
+                            </div>
+                        ) : (
+                            <>
+                                <div
+                                    className="lg:h-100 lg:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-lg:mb-10">
+                                    {postData?.messages?.map((message) => (
+                                        <div
+                                            className={`w-full mb-5 ${selectedMess == message.id ? 'shadow-lg shadow-main/50' : ''}`}
+                                            key={message.id}
+                                            id={`${message.id}`}
                                         >
-                                            ➤
-                                        </button></div>
-                                </>
-                            ) : (
-                                <p className="text-xl text-center">
-                                    Для того чтобы оставить Комментарий, нужно войти в аккаунт
-                                    <br />
-                                    <a href="/login" className="text-main">
-                                        Войти
-                                    </a>
-                                </p>
+                                            <div className="flex flex-col items-start">
+                                                <a
+                                                    href={`/users/${message.user?.id}`}
+                                                    className="flex items-center gap-3 w-full mb-2 hover:opacity-80 transition-opacity"
+                                                >
+                                                    {message.user?.avatar ? (
+                                                        <img
+                                                            src={`${BASE_URL}${message.user?.avatar}`}
+                                                            alt={`Аватар ${message.user?.name}`}
+                                                            className="rounded-full w-10 h-10 object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-10 h-10 rounded-full bg-main text-lg font-bold text-white flex items-center justify-center">
+                                                            {message.user?.name?.[0]?.toUpperCase()}
+                                                        </div>
+                                                    )}
 
-                            )}
-                        </form>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium text-gray-900">
+                                                            {message.user?.name}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500">
+                                                            {new Date(message.created_at).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                </a>
 
+                                                {/* Контекстное меню и контент комментария */}
+                                                <div className="w-full pl-13">
+                                                    <ContextMenu
+                                                        closing={closeContext}
+                                                        openTrigger={
+                                                            <div className="w-full">
+                                                                {message.message?.content && (
+                                                                    <div className="mb-2">
+                                                                        <a
+                                                                            href={`#${message.message.id}`}
+                                                                            onClick={() => setCloseContext(true)}
+                                                                            className={`
+                                            block border-l-4 rounded-r-md p-3 text-sm
+                                            ${message.author_id === user?.id
+                                                                                    ? 'bg-main/10 border-main'
+                                                                                    : 'bg-gray-100 border-gray-400'
+                                                                                }
+                                            hover:bg-opacity-80 transition-colors
+                                        `}
+                                                                        >
+                                                                            <span className="text-xs text-gray-500 block mb-1">
+                                                                                Ответ на комментарий:
+                                                                            </span>
+                                                                            {message.message?.content}
+                                                                        </a>
+                                                                    </div>
+                                                                )}
+
+                                                                {message.source && (
+                                                                    <div className="mb-3 max-w-md">
+                                                                        <Popup
+                                                                            openTrigger={
+                                                                                message.source?.type?.includes('postData') ? (
+                                                                                    <postData
+                                                                                        src={`${BASE_URL}${message.source.name}`}
+                                                                                        controls
+                                                                                        className="m-auto w-2/4 max-h-96"
+                                                                                    />
+                                                                                ) : (
+                                                                                    <img
+                                                                                        src={`${BASE_URL}${message.source.name}`}
+                                                                                        alt="Прикрепленное изображение"
+                                                                                        className=" rounded-lg max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                                                                    />)
+                                                                            }
+                                                                        >
+                                                                            {message.source?.type?.includes('postData') ? (
+                                                                                <postData
+                                                                                    src={`${BASE_URL}${message.source.name}`}
+                                                                                    controls
+                                                                                    className="m-auto w-2/4 max-h-96"
+                                                                                />) : (<img
+                                                                                    src={`${BASE_URL}${message.source.name}`}
+                                                                                    alt="Прикрепленное изображение"
+                                                                                    className="w-full m-auto max-h-[80vh] mt-5 "
+                                                                                />)
+                                                                            }
+
+
+
+                                                                        </Popup>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Текст комментария */}
+                                                                <p className="text-gray-800 whitespace-pre-wrap break-words">
+                                                                    {message.content}
+                                                                </p>
+                                                            </div>
+                                                        }
+                                                    >
+                                                        <div className="bg-white min-w-[200px]">
+                                                            {/* Форма жалобы */}
+                                                            <form
+                                                                onSubmit={(e) => {
+                                                                    e.preventDefault();
+                                                                    const formData = new FormData(e.target);
+                                                                    reportMessage(message, formData.get('report_desc'));
+                                                                }}
+                                                                className="mb-2"
+                                                            >
+                                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                                    Пожаловаться
+                                                                </label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        name="report_desc"
+                                                                        placeholder="Причина жалобы..."
+                                                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-main"
+                                                                        required
+                                                                    />
+                                                                    <button
+                                                                        type="submit"
+                                                                        className="btn text-sm rounded-md transition-colors"
+                                                                    >
+                                                                        Отправить
+                                                                    </button>
+                                                                </div>
+                                                            </form>
+
+                                                            <div className="border-t border-gray-200 pt-2">
+                                                                {/* Кнопка ответа */}
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center gap-2"
+                                                                    onClick={() => {
+                                                                        setCloseContext(true);
+                                                                        setAnswer({
+                                                                            id: message.id,
+                                                                            content: message.content,
+                                                                            userName: message.user?.name
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    Ответить
+                                                                </button>
+
+                                                                {/* Кнопка копирования */}
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center gap-2"
+                                                                    onClick={() => {
+                                                                        navigator.clipboard.writeText(message.content);
+                                                                        setCloseContext(true);
+                                                                        // Можно добавить уведомление об успешном копировании
+                                                                    }}
+                                                                >
+                                                                    Копировать текст
+                                                                </button>
+
+                                                                {/* Кнопка удаления (только для своих комментариев) */}
+                                                                {message.author_id === user?.id && (
+                                                                    <button
+                                                                        className="w-full text-red-300 text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors flex items-center gap-2"
+                                                                        onClick={() => {
+
+                                                                            setCloseContext(true);
+                                                                        }}
+                                                                    >
+                                                                        Удалить
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Кнопка закрепления (только для авторов поста) */}
+                                                                {postData?.author_id === user?.id && (
+                                                                    <button
+                                                                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center gap-2"
+                                                                        onClick={() => {
+                                                                            pinMessage(message);
+                                                                            setCloseContext(true);
+                                                                        }}
+                                                                    >
+                                                                        Закрепить
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </ContextMenu>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <form onSubmit={handleSend}
+                                    className='w-full flex flex-col gap-2 mt-10 max-lg:fixed  max-lg:bg-bg max-lg:bottom-0'>
+                                    {user ? (
+                                        <>
+                                            {answer ? (
+                                                <div className="flex justify-between">
+                                                    <a href={`#${answer?.id}`}>{answer?.content}</a>
+                                                    <button onClick={() => { setAnswer(null) }}>❌</button>
+                                                </div>
+                                            ) : (null)}
+
+                                            {file ? (
+                                                <div className="flex justify-between">
+                                                    {file?.name}
+                                                    <button onClick={() => { setFile(null) }}>❌</button>
+                                                </div>
+                                            ) : (null)}
+
+                                            <div className="flex w-full justify-start gap-10 items-center">
+                                                <input
+                                                    type="text"
+                                                    value={content}
+                                                    name="content"
+                                                    onChange={(e) => setContent(e.target.value)}
+                                                    className='w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:border-main'
+                                                    placeholder="Комментировать..."
+                                                />
+
+                                                <input type="file" name="source_com" id="source_com" className="hidden"
+                                                    onChange={(e) => {
+                                                        if (e.target.files && e.target.files[0]) {
+                                                            setFile(e.target.files[0]);
+                                                            e.target.value = ''
+                                                        }
+                                                    }}
+                                                />
+                                                <label htmlFor="source_com" className="text-4xl rotate-45">📎</label>
+
+                                                <button
+                                                    type="submit"
+                                                    className='text-xl p-3 bg-main text-white rounded-md disabled:bg-gray-400 min-w-20'
+                                                    disabled={!(content.trim() || file)}
+                                                >
+                                                    ➤
+                                                </button></div>
+                                        </>
+                                    ) : (
+                                        <p className="text-xl text-center">
+                                            Для того чтобы оставить Комментарий, нужно войти в аккаунт
+                                            <br />
+                                            <a href="/login" className="text-main">
+                                                Войти
+                                            </a>
+                                        </p>
+
+                                    )}
+                                </form>
+                            </>)
+                        }
                     </div>
                 </div>
+
             )}
         </MainLayout >
     )

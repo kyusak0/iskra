@@ -27,6 +27,7 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
+            'success' => true,
             'user' => $user,
             'token' => $token,
             'message' => 'Registration successful'
@@ -90,7 +91,7 @@ class AuthController extends Controller
 
     public function userInfo($id){
         $user = User::with([
-            'posts', 'posts.source', 'sources', 'videos'
+            'posts', 'posts.source', 'sources', 'videos', 'reposts', 'reposts.posts', 'reposts.videos'
         ])->findOrFail($id);
         if($user){
             return response()->json([

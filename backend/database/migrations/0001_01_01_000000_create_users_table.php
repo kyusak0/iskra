@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->string('is_blocked')->default('false');
             $table->text('google2fa_secret')->nullable();
             $table->boolean('google2fa_enabled')->default(false);
             $table->timestamp('google2fa_confirmed_at')->nullable();

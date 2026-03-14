@@ -16,7 +16,7 @@ export default function ContextMenu({
         setContext({
             visible: true,
             x: event.clientX - 150,
-            y: event.clientY - 100,
+            y: event.clientY,
         });
     };
 
@@ -48,7 +48,7 @@ export default function ContextMenu({
 
             {context.visible && (
                 <div
-                    className="fixed w-full h-screen top-0 left-0"
+                    className="fixed w-full h-screen top-0 left-0  z-3"
                 >
                     <div
                         className="absolute w-full h-screen"

@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('duration');
             $table->integer('views_count')->default(0);
             $table->string('url');
+            $table->string('commentable')->default('true');
             $table->timestamps();
         });
     }

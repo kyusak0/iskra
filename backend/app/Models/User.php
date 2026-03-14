@@ -22,7 +22,8 @@ class User extends Authenticatable
         'email',
         'password',
         'avatar',
-        'role'
+        'role',
+        'is_blocked'
     ];
 
     public function sources(){
@@ -50,7 +51,11 @@ class User extends Authenticatable
     }
 
     public function subs(){
-        return $this->belongsToMany(User::class, 'subs', 'user_id', 'creator_id');
+        return $this->belongsToMany(User::class, 'subs', 'creator_id', 'user_id');
+    }
+
+    public function reposts(){
+        return $this->hasMany(Repost::class);
     }
 
     /**
