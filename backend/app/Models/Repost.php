@@ -16,7 +16,7 @@ class Repost extends Model
         return $this->belongsTo(Video::class, 'post_id');
     }
 
-    public function users(){
-        return $this->belongsTo(User::class);
+    public function user(){
+        return $this->belongsTo(User::class, "user_id");
     }
 }

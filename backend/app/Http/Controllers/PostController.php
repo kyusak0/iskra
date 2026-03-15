@@ -58,7 +58,7 @@ class PostController extends Controller
     }
 
     public function getPostInfo($url){
-        $post = Post::with(['user', 'source', 'messages', 'messages.source', 'messages.user', 'messages.message', 'tags'])->where('url', $url)->first();
+        $post = Post::with(['user', 'source', 'messages', 'messages.source', 'messages.user', 'messages.message', 'tags', 'reposts.user'])->where('url', $url)->first();
 
         return response()->json([
             'success' => true,
@@ -108,7 +108,7 @@ class PostController extends Controller
     }
 
     public function getVideoInfo($id){
-        $video = Video::with(['user', 'source', 'cover', 'messages', 'messages.user', 'messages.message', 'tags'])->where('url', $id)->first();
+        $video = Video::with(['user', 'source', 'cover', 'messages', 'messages.user', 'messages.message', 'tags', 'reposts'])->where('url', $id)->first();
     
         return response()->json([
             'success' => true,

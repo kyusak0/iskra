@@ -198,6 +198,7 @@ export default function ProfilePage() {
         const content = getFilteredContent();
 
         if (activeTab === 'reposts') {
+            console.log(content)
             return content.map((post, index) => (
                 <div className="col-span-1 max-lg:col-span-3 border-2 border-main p-5 flex flex-col justify-center" key={post.id}>
                     <div className="flex gap-2 pb-2 items-center">

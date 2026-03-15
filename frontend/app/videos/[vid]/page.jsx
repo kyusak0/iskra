@@ -145,6 +145,8 @@ export default function Videos() {
         };
     }, []);
 
+    const [isReposted, setIsReposted] = useState(false);
+
     const getVideo = useCallback(async () => {
         try {
             setLoading(true);
@@ -168,8 +170,10 @@ export default function Videos() {
                 views: el.views_count || 0,
                 messages: el.messages || [],
                 commentable: res.data?.commentable,
-                url: res.data.url
+                url: res.data.url,
             };
+
+            setIsReposted(res.data.reposts.filter(el => el.link.includes('videos/') && el.user_id == user?.id).length > 0)
 
             setVideo(newRecord);
 
@@ -322,6 +326,7 @@ export default function Videos() {
         }
 
         await post('/repost', data)
+        setIsReposted(!isReposted)
     }
 
     if (loading) {
@@ -397,7 +402,9 @@ export default function Videos() {
                                     <span className="font-medium">{video.author.name}</span>
                                 </Link>
 
-                                <button onClick={repost} className="w-max btn rounded-md">Репост</button>
+                                {isReposted ? (<button onClick={repost} className="w-max px-4 py-2 uppercase font-bold text-bg bg-gray-300 rounded-md">Уже в репостах</button>) : (<button onClick={repost} className="w-max btn rounded-md">Репост</button>)}
+
+
 
                                 <div className="flex gap-5 items-center">
                                     <button className="px-4 py-2 border border-main rounded-full hover:bg-main/10 transition-colors">
@@ -421,11 +428,12 @@ export default function Videos() {
                             )}
 
                             <div className="mt-6 text-gray-500 py-4 border-t border-gray-200">
-                                <h3 className="text-xl mb-5">
-                                    Комментарии
-                                </h3>
-                                {video.commentable == 'true' && (<button onClick={commentability}
-                                    className="btn rounded-md">Отключить</button>)}
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-xl mb-5">
+                                        Комментарии
+                                    </h3>
+                                    {video.commentable == 'true' && (<button onClick={commentability}
+                                        className="btn rounded-md">Отключить</button>)}</div>
 
                                 {video.commentable !== 'true' ? (
                                     <div className=" flex flex-col gap-5 items-center"><p>Комментарии отключены</p>

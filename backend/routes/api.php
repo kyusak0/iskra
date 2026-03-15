@@ -50,7 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/get-or-create-personal-chat', [DebateController::class, 'createChatPersonal']);
     
     Route::post('/send-message/post/{id}', [DebateController::class, 'sendMessage']);
-    Route::post('/send-message/chat/{id}', [DebateController::class, 'sendMessage']);
+    Route::post('/send-message/chat', [DebateController::class, 'sendMessage']);
     Route::post('/send-message/video/{id}', [DebateController::class, 'sendMessage']);
 
     Route::post('/commentable/video', [DebateController::class, 'commentable']);

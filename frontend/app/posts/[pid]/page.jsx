@@ -32,6 +32,8 @@ export default function ProfilePage() {
         window.location.reload()
     }
 
+    const [isReposted, setIsReposted] = useState(false);
+
     const getPostInfo = async (postId) => {
         try {
             const res = await get('/get-post/' + postId);
@@ -48,6 +50,8 @@ export default function ProfilePage() {
                     url: res.data.url
                 });
 
+                setIsReposted(res.data.reposts.filter(el => el.link.includes('posts/') && el.user_id == user?.id).length > 0)
+
 
             } else {
 
@@ -56,6 +60,9 @@ export default function ProfilePage() {
             console.log(error.message)
         }
     }
+
+
+
 
     const handleSend = async (e) => {
         e.preventDefault();
@@ -197,6 +204,8 @@ export default function ProfilePage() {
         }
 
         await post('/repost', data)
+
+        setIsReposted(!isReposted)
     }
 
     return (
@@ -274,7 +283,8 @@ export default function ProfilePage() {
                                     </a>
                                 )}
 
-                                <button onClick={repost} className="w-max btn rounded-md">Репост</button></div>
+                                {isReposted ? (<button onClick={repost} className="w-max px-4 py-2 uppercase font-bold text-bg bg-gray-300 rounded-md">Уже в репостах</button>) : (<button onClick={repost} className="w-max btn rounded-md">Репост</button>)}
+                            </div>
 
                             {/* Title */}
                             {postData?.title && (

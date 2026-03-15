@@ -204,6 +204,8 @@ class DebateController extends Controller
             ->first();
 
         if(!empty($existing_repost)){
+            $existing_repost::query()->delete();
+
             return response()->json([
                 'success' => true,
                 'data' => $existing_repost,
@@ -231,8 +233,7 @@ class DebateController extends Controller
         ], 500);
     }
 
-    public function getMessages($id)
-    {
+    public function getMessages($id) {
         $url = Route::current()->uri(); 
         if(str_contains($url, 'post')){
             $messages = Message::where('messageable_id', $id)

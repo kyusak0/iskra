@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useAuth } from '../../../context/authContext';
 import ContextMenu from '../../../components/contextMenu/ContextMenu';
 import Popup from '../../../components/popup/Popup';
+import Alert from '../../../components/alert/Alert';
+import { type } from 'node:os';
 
 const BASE_URL = 'http://localhost:8001/storage/';
 const WS_URL = 'ws://localhost:5000';
@@ -47,11 +49,13 @@ export default function Chat({ chat_id, chat_url }) {
 
     // States
     const [incomingCall, setIncomingCall] = useState(null);
-    const [isMuted, setIsMuted] = useState(false);
-    const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-    const [callTime, setCallTime] = useState(0);
     const [callActive, setCallActive] = useState(false);
     const [callType, setCallType] = useState(null);
+    const [callTime, setCallTime] = useState(0);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+    const [isCallMinimized, setIsCallMinimized] = useState(false);
+    const [callParticipants, setCallParticipants] = useState([]);
     const [chatData, setChatData] = useState(null);
     const [messages, setMessages] = useState([]);
     const [content, setContent] = useState("");
@@ -157,7 +161,6 @@ export default function Chat({ chat_id, chat_url }) {
         }
     }, [get]);
 
-    // Инициализация
     useEffect(() => {
         if (user) {
             loadChatData();
@@ -165,7 +168,6 @@ export default function Chat({ chat_id, chat_url }) {
         }
     }, [user, loadChatData, loadAvailableChats]);
 
-    // Heartbeat для проверки соединения
     const startHeartbeat = useCallback(() => {
         if (heartbeatInterval.current) {
             clearInterval(heartbeatInterval.current);
@@ -223,37 +225,20 @@ export default function Chat({ chat_id, chat_url }) {
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
+                    console.log('WebSocket message:', data.type, data);
 
                     switch (data.type) {
+                        case 'ping':
+                            ws.send(JSON.stringify({ type: 'pong' }));
+                            lastPongRef.current = Date.now();
+                            break;
+
                         case 'pong':
                             lastPongRef.current = Date.now();
                             break;
 
                         case 'online_users':
-                            // Обновляем онлайн пользователей только для групповых чатов
-                            if (chatData.type !== 'personal') {
-                                console.log('Online users update:', data.users);
-                                setOnlineUsers(data.users || []);
-                            }
-                            break;
-
-                        case 'user_online':
-                            // Обновляем онлайн пользователей только для групповых чатов
-                            if (chatData.type !== 'personal') {
-                                setOnlineUsers(prev => {
-                                    if (!prev.some(u => u.id === data.user.id)) {
-                                        return [...prev, data.user];
-                                    }
-                                    return prev;
-                                });
-                            }
-                            break;
-
-                        case 'user_offline':
-                            // Обновляем онлайн пользователей только для групповых чатов
-                            if (chatData.type !== 'personal') {
-                                setOnlineUsers(prev => prev.filter(u => u.id !== data.user_id));
-                            }
+                            setOnlineUsers(data.users || []);
                             break;
 
                         case 'typing_start':
@@ -270,7 +255,7 @@ export default function Chat({ chat_id, chat_url }) {
                             break;
 
                         case 'new_message':
-                            if (data.message) {
+                            if (data.message && data.message.chat_id === chatData.id) {
                                 setMessages(prev => {
                                     if (prev.some(m => m.id === data.message.id)) return prev;
 
@@ -278,7 +263,7 @@ export default function Chat({ chat_id, chat_url }) {
                                         id: data.message.id,
                                         author_id: data.message.author_id,
                                         author_name: data.message.author_name || `User ${data.message.author_id}`,
-                                        content: data.message.source_type === 'voice' ? '🎤 Голосовое сообщение' : data.message.content,
+                                        content: data.message?.content,
                                         source: data.message.source || null,
                                         source_type: data.message.source_type,
                                         created_at: new Date(data.message.created_at).toLocaleTimeString(),
@@ -312,40 +297,41 @@ export default function Chat({ chat_id, chat_url }) {
                             }
                             break;
 
-                        case 'user_joined':
-                            // Показываем системные сообщения только для групповых чатов
-                            if (chatData.type !== 'personal') {
-                                const joinMsg = {
-                                    id: `join-${Date.now()}`,
-                                    type: 'system',
-                                    content: `👋 Пользователь ${data.user_name} присоединился к чату`,
-                                    timestamp: Date.now()
-                                };
-                                setMessages(prev => [...prev, joinMsg]);
-                                setTimeout(() => {
-                                    setMessages(prev => prev.filter(m => m.id !== joinMsg.id));
-                                }, 5000);
+                        // Обработка звонков
+                        case 'call_offer':
+                            setIncomingCall({
+                                chat_id: data.data.chat_id,
+                                offer: data.data.offer,
+                                callType: data.data.callType,
+                                caller_id: data.data.caller_id,
+                                caller_name: data.data.caller_name
+                            });
+                            break;
+
+                        case 'call_answer':
+                            if (peerRef.current) {
+                                peerRef.current.setRemoteDescription(new RTCSessionDescription(data.data.answer))
+                                    .catch(err => console.error('Error setting remote description:', err));
                             }
                             break;
 
-                        case 'user_left':
-                            // Показываем системные сообщения только для групповых чатов
-                            if (chatData.type !== 'personal') {
-                                const leftMsg = {
-                                    id: `left-${Date.now()}`,
-                                    type: 'system',
-                                    content: `👋 Пользователь ${data.user_name} покинул чат`,
-                                    timestamp: Date.now()
-                                };
-                                setMessages(prev => [...prev, leftMsg]);
-                                setTimeout(() => {
-                                    setMessages(prev => prev.filter(m => m.id !== leftMsg.id));
-                                }, 5000);
+                        case 'call_ice':
+                            if (peerRef.current) {
+                                peerRef.current.addIceCandidate(new RTCIceCandidate(data.data.candidate))
+                                    .catch(err => console.error('Error adding ICE candidate:', err));
                             }
+                            break;
+
+                        case 'call_end':
+                            handleCallEnd();
+                            break;
+
+                        case 'call_busy':
+                            alert('В чате уже идет звонок');
                             break;
 
                         default:
-                            break;
+                            console.log('Unknown message type:', data.type);
                     }
                 } catch (error) {
                     console.error('Error parsing WebSocket message:', error);
@@ -443,7 +429,7 @@ export default function Chat({ chat_id, chat_url }) {
         }
     };
 
-    // Debounced поиск
+    // поиск сообщений
     const debouncedSearch = useCallback(
         debounce((query) => {
             if (query.trim() === '') {
@@ -471,7 +457,7 @@ export default function Chat({ chat_id, chat_url }) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Таймер
+    // Таймер для звонков
     const startTimer = useCallback(() => {
         if (timerRef.current) clearInterval(timerRef.current);
         timerRef.current = setInterval(() => {
@@ -522,7 +508,7 @@ export default function Chat({ chat_id, chat_url }) {
             }
 
             if (!isConnected) {
-                alert('Нет подключения к серверу');
+                setAlert({ content: 'Нет подключения к интернету', type: 'err' });
                 return;
             }
 
@@ -544,7 +530,7 @@ export default function Chat({ chat_id, chat_url }) {
                 id: tempId,
                 author_id: user.id,
                 author_name: user.name,
-                content: recording ? '🎤 Голосовое сообщение' : content,
+                content: content || null,
                 source: loadFile?.data || voiceFile?.data || null,
                 source_type: recording ? 'voice' : (file ? 'file' : null),
                 created_at: new Date().toLocaleTimeString(),
@@ -577,7 +563,7 @@ export default function Chat({ chat_id, chat_url }) {
                             id: res.data.id,
                             author_id: res.data.author_id,
                             author_name: user.name,
-                            content: recording ? '🎤 Голосовое сообщение' : res.data.content,
+                            content: res.data?.content,
                             created_at: new Date(res.data.created_at).toLocaleTimeString(),
                             isSending: false,
                             answer_id: res.data.answer_id,
@@ -594,7 +580,7 @@ export default function Chat({ chat_id, chat_url }) {
                     type: 'new_message',
                     message: {
                         id: res.data.id,
-                        content: recording ? '🎤 Голосовое сообщение' : res.data.content,
+                        content: res.data?.content,
                         author_id: res.data.author_id,
                         author_name: user.name,
                         chat_id: chatData.id,
@@ -608,7 +594,7 @@ export default function Chat({ chat_id, chat_url }) {
             }
         } catch (err) {
             console.error('Error sending message:', err);
-            alert('Ошибка при отправке сообщения');
+            setAlert({ content: 'Ошибка при отправке сообщения \n' + err.message, type: 'err' });
             setMessages(prev => prev.filter(msg => msg.id !== tempId));
         }
     };
@@ -725,24 +711,70 @@ export default function Chat({ chat_id, chat_url }) {
     // Отправка пересланных сообщений
     const sendForwardedMessages = async (targetChatId) => {
         try {
+            const sentMessages = [];
+
             for (const msg of forwardMessages) {
-                await post("/send-message/chat", {
+                const response = await post("/send-message/chat", {
                     author_id: user.id,
                     chat_id: targetChatId,
                     content: `📨 Пересланное сообщение от ${msg.author_name}:\n${msg.content}`,
                     source_id: msg.source?.id || null,
                     source_type: msg.source_type,
                 });
+
+                sentMessages.push(response.data);
+
+                // Отправляем через WebSocket каждое сообщение
+                if (wsRef.current?.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                        type: 'new_message',
+                        message: {
+                            id: response.data.id,
+                            content: response.data.content,
+                            author_id: user.id,
+                            author_name: user.name,
+                            chat_id: targetChatId,
+                            created_at: response.data.created_at,
+                            answer_id: response.data.answer_id,
+                            answer_content: response.data.message?.content,
+                            source: response.data.source || null,
+                            source_type: response.data.source_type,
+                        }
+                    }));
+                }
             }
+
+            // Очищаем список пересылаемых сообщений
             setForwardMessages([]);
             setShowForwardSelector(false);
-            alert('Сообщения успешно пересланы');
+
+            // Обновляем локальное состояние сообщений, если нужно
+            if (sentMessages.length > 0) {
+                setMessages(prev => [
+                    ...prev,
+                    ...sentMessages.map(msg => ({
+                        id: msg.id,
+                        author_id: msg.author_id,
+                        author_name: user.name,
+                        content: msg.content,
+                        created_at: new Date(msg.created_at).toLocaleTimeString(),
+                        isSending: false,
+                        answer_id: msg.answer_id,
+                        answer_content: msg.message?.content,
+                        source: msg.source || null,
+                        source_type: msg.source_type,
+                    }))
+                ]);
+            }
+
         } catch (err) {
             console.error('Error forwarding messages:', err);
-            alert('Ошибка при пересылке сообщений');
+            setAlert({
+                content: `Ошибка при пересылке сообщений: ${err.message}`,
+                type: 'err'
+            });
         }
     };
-
     // Вступление в чат
     const joinChat = async () => {
         try {
@@ -803,8 +835,10 @@ export default function Chat({ chat_id, chat_url }) {
 
             localStreamRef.current = stream;
 
+            // Привязываем локальное видео сразу
             if (type === 'video' && localVideoRef.current) {
                 localVideoRef.current.srcObject = stream;
+                localVideoRef.current.play().catch(e => console.log('Error playing local video:', e));
             }
 
             const peer = new RTCPeerConnection({
@@ -815,33 +849,167 @@ export default function Chat({ chat_id, chat_url }) {
             });
             peerRef.current = peer;
 
-            stream.getTracks().forEach(track => peer.addTrack(track, stream));
+            // Добавляем все треки
+            stream.getTracks().forEach(track => {
+                peer.addTrack(track, stream);
+            });
 
             peer.onicecandidate = (event) => {
                 if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
                     wsRef.current.send(JSON.stringify({
                         type: "call_ice",
-                        data: { chat_id: chatData.id, candidate: event.candidate }
+                        data: {
+                            chat_id: chatData.id,
+                            candidate: event.candidate
+                        }
                     }));
                 }
             };
 
-            const offer = await peer.createOffer();
+            peer.ontrack = (event) => {
+                console.log('Received remote track', event.track.kind);
+
+                const remoteStream = new MediaStream();
+                event.streams[0].getTracks().forEach(track => {
+                    remoteStream.addTrack(track);
+                });
+
+                if (type === 'video') {
+                    if (remoteVideoRef.current) {
+                        remoteVideoRef.current.srcObject = remoteStream;
+                        remoteVideoRef.current.play().catch(e => console.log('Error playing remote video:', e));
+                    }
+                } else {
+                    if (remoteAudioRef.current) {
+                        remoteAudioRef.current.srcObject = remoteStream;
+                    }
+                }
+            };
+
+            const offer = await peer.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: type === 'video'
+            });
             await peer.setLocalDescription(offer);
 
             if (wsRef.current?.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({
                     type: "call_offer",
-                    data: { chat_id: chatData.id, offer, callType: type }
+                    data: {
+                        chat_id: chatData.id,
+                        offer,
+                        callType: type
+                    }
                 }));
             }
 
             setCallActive(true);
             setCallType(type);
+            setCallParticipants([{ id: user.id, name: user.name }]);
             startTimer();
         } catch (err) {
             console.error('Error starting call:', err);
+            alert('Ошибка при начале звонка: ' + err.message);
         }
+    };
+
+    const acceptCall = async () => {
+        if (!incomingCall) return;
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: incomingCall.callType === 'video'
+            });
+
+            localStreamRef.current = stream;
+
+            // Привязываем локальное видео
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = stream;
+                localVideoRef.current.play().catch(e => console.log('Error playing local video:', e));
+            }
+
+            const peer = new RTCPeerConnection({
+                iceServers: [
+                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: "stun:stun1.l.google.com:19302" }
+                ]
+            });
+            peerRef.current = peer;
+
+            // Добавляем все треки в peer connection
+            stream.getTracks().forEach(track => {
+                peer.addTrack(track, stream);
+            });
+
+            peer.onicecandidate = (event) => {
+                if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                        type: "call_ice",
+                        data: {
+                            chat_id: chatData.id,
+                            candidate: event.candidate
+                        }
+                    }));
+                }
+            };
+
+            peer.ontrack = (event) => {
+                console.log('Received remote track', event.track.kind);
+
+                // Важно: создаем новый MediaStream из полученных треков
+                const remoteStream = new MediaStream();
+                event.streams[0].getTracks().forEach(track => {
+                    remoteStream.addTrack(track);
+                });
+
+                // Привязываем удаленное видео/аудио
+                if (incomingCall.callType === 'video') {
+                    if (remoteVideoRef.current) {
+                        remoteVideoRef.current.srcObject = remoteStream;
+                        remoteVideoRef.current.play().catch(e => console.log('Error playing remote video:', e));
+                    }
+                } else {
+                    if (remoteAudioRef.current) {
+                        remoteAudioRef.current.srcObject = remoteStream;
+                    }
+                }
+            };
+
+            // Устанавливаем удаленное описание (offer)
+            await peer.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+
+            // Создаем и отправляем answer
+            const answer = await peer.createAnswer();
+            await peer.setLocalDescription(answer);
+
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                    type: "call_answer",
+                    data: {
+                        chat_id: chatData.id,
+                        answer
+                    }
+                }));
+            }
+
+            setCallActive(true);
+            setCallType(incomingCall.callType);
+            setCallParticipants([
+                { id: incomingCall.caller_id, name: incomingCall.caller_name },
+                { id: user.id, name: user.name }
+            ]);
+            setIncomingCall(null);
+            startTimer();
+        } catch (err) {
+            console.error('Error accepting call:', err);
+            alert('Ошибка при ответе на звонок: ' + err.message);
+        }
+    };
+
+    const rejectCall = () => {
+        setIncomingCall(null);
     };
 
     const endCall = () => {
@@ -853,6 +1021,16 @@ export default function Chat({ chat_id, chat_url }) {
             localStreamRef.current.getTracks().forEach(track => track.stop());
             localStreamRef.current = null;
         }
+        // Очищаем видео элементы
+        if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = null;
+        }
+        if (localVideoRef.current) {
+            localVideoRef.current.srcObject = null;
+        }
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = null;
+        }
 
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
@@ -863,13 +1041,36 @@ export default function Chat({ chat_id, chat_url }) {
 
         setCallActive(false);
         setCallType(null);
+        setCallParticipants([]);
         stopTimer();
+    };
+
+    const handleCallEnd = () => {
+        setCallActive(false);
+        setCallType(null);
+        setCallParticipants([]);
+        stopTimer();
+
+        if (peerRef.current) {
+            peerRef.current.close();
+            peerRef.current = null;
+        }
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => track.stop());
+            localStreamRef.current = null;
+        }
+        if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = null;
+        }
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = null;
+        }
     };
 
     const toggleMute = () => {
         if (localStreamRef.current) {
             const audioTracks = localStreamRef.current.getAudioTracks();
-            audioTracks.forEach(track => { track.enabled = !isMuted; });
+            audioTracks.forEach(track => { track.enabled = isMuted; });
             setIsMuted(!isMuted);
         }
     };
@@ -882,20 +1083,25 @@ export default function Chat({ chat_id, chat_url }) {
         }
     };
 
+    const toggleCallMinimize = () => {
+        setIsCallMinimized(!isCallMinimized);
+    };
+
+
     // Очистка при размонтировании
     useEffect(() => {
         return () => {
-            if (heartbeatInterval.current) {
-                clearInterval(heartbeatInterval.current);
+            // Очищаем видео при размонтировании
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = null;
             }
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(track => track.stop());
-            }
-            if (recording?.url) {
-                URL.revokeObjectURL(recording.url);
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = null;
             }
         };
     }, []);
+
+    const [alert, setAlert] = useState()
 
     if (isLoading) {
         return (
@@ -923,7 +1129,7 @@ export default function Chat({ chat_id, chat_url }) {
             {isMember ? (
                 <>
                     {/* Header */}
-                    <div className="bg-bg fixed w-full z-10 border-b-2 border-main p-4 flex items-center justify-between">
+                    <div className="bg-bg fixed w-full z-2 border-b-2 border-main p-4 flex items-center justify-between">
                         <a href="/chats" className='uppercase text-main font-bold'>назад</a>
 
                         <Popup
@@ -1091,30 +1297,95 @@ export default function Chat({ chat_id, chat_url }) {
                                         📹
                                     </button>
                                 </>
-                            ) : (
-                                <div className="flex items-center gap-2 bg-green-100 rounded-lg px-3 py-1">
-                                    <span className="text-green-600 animate-pulse">●</span>
-                                    <span>{formatTime(callTime)}</span>
-                                    <button onClick={toggleMute} className="px-2 hover:bg-green-200 rounded">
-                                        {isMuted ? '🔇' : '🔊'}
-                                    </button>
-                                    {callType === 'video' && (
-                                        <button onClick={toggleVideo} className="px-2 hover:bg-green-200 rounded">
-                                            {isVideoEnabled ? '📹' : '🚫'}
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={endCall}
-                                        className="bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600"
-                                    >
-                                        Завершить
-                                    </button>
-                                </div>
-                            )}
+                            ) : null}
                         </div>
                     </div>
 
-                    {/* Search panel */}
+                    {/* Попап входящего звонка */}
+                    {incomingCall && (
+                        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl p-6 z-50 border-2 border-main min-w-[300px]">
+                            <div className="text-center">
+                                <div className="w-20 h-20 mx-auto mb-4 bg-main/20 rounded-full flex items-center justify-center">
+                                    <span className="text-4xl">
+                                        {incomingCall.callType === 'video' ? '📹' : '📞'}
+                                    </span>
+                                </div>
+                                <p className="text-xl font-bold mb-2">
+                                    Входящий {incomingCall.callType === 'video' ? 'видео' : 'аудио'} звонок
+                                </p>
+                                <p className="text-gray-600 mb-6">от {incomingCall.caller_name}</p>
+                                <div className="flex gap-4 justify-center">
+                                    <button
+                                        onClick={acceptCall}
+                                        className="px-6 py-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors flex items-center gap-2"
+                                    >
+                                        <span>✅</span> Ответить
+                                    </button>
+                                    <button
+                                        onClick={rejectCall}
+                                        className="px-6 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors flex items-center gap-2"
+                                    >
+                                        <span>❌</span> Отклонить
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Попап активного звонка */}
+                    {callActive && callType === 'video' && (
+                        <div className="fixed top-[73px] left-0 right-0 z-50 bg-black p-4" style={{ height: '400px' }}>
+                            <div className="relative h-full">
+                                {/* Видео собеседника на весь экран */}
+                                <video
+                                    ref={remoteVideoRef}
+                                    autoPlay
+                                    playsInline
+                                    className="w-full h-full bg-gray-800 rounded-lg object-cover"
+                                />
+
+                                {/* Свое видео в углу */}
+                                <div className="absolute bottom-4 right-4 w-48 h-36 bg-gray-800 rounded-lg border-2 border-white overflow-hidden shadow-lg">
+                                    <video
+                                        ref={localVideoRef}
+                                        autoPlay
+                                        playsInline
+                                        muted
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+
+                                {/* Элементы управления видео */}
+                                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-4 bg-black/50 p-2 rounded-full">
+                                    <button
+                                        onClick={toggleMute}
+                                        className={`p-3 rounded-full ${isMuted ? 'bg-red-500' : 'bg-gray-700'} hover:opacity-80 transition-colors`}
+                                    >
+                                        {isMuted ? '🔇' : '🎤'}
+                                    </button>
+
+                                    <button
+                                        onClick={toggleVideo}
+                                        className={`p-3 rounded-full ${!isVideoEnabled ? 'bg-red-500' : 'bg-gray-700'} hover:opacity-80 transition-colors`}
+                                    >
+                                        {isVideoEnabled ? '📹' : '🚫'}
+                                    </button>
+
+                                    <button
+                                        onClick={endCall}
+                                        className="p-3 rounded-full bg-red-500 hover:bg-red-600 transition-colors"
+                                    >
+                                        📞
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+
+                    <audio ref={remoteAudioRef} autoPlay />
+
+                    {/* Поискавая панель */}
                     {showSearch && (
                         <div className="p-4 border-b bg-white fixed w-full top-[73px] z-10 shadow-md">
                             <input
@@ -1172,27 +1443,6 @@ export default function Chat({ chat_id, chat_url }) {
                                 ) : (
                                     <p className="text-gray-500 text-sm">Нет закрепленных сообщений</p>
                                 )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Video call */}
-                    {callActive && callType === 'video' && (
-                        <div className="p-4 bg-black fixed top-[73px] w-full z-10">
-                            <div className="relative">
-                                <video
-                                    ref={remoteVideoRef}
-                                    autoPlay
-                                    playsInline
-                                    className="w-full h-64 bg-gray-800 rounded-lg object-cover"
-                                />
-                                <video
-                                    ref={localVideoRef}
-                                    autoPlay
-                                    playsInline
-                                    muted
-                                    className="absolute bottom-2 right-2 w-32 h-24 bg-gray-800 rounded-lg border-2 border-white object-cover"
-                                />
                             </div>
                         </div>
                     )}
@@ -1259,13 +1509,21 @@ export default function Chat({ chat_id, chat_url }) {
                                                             {message.source ? (
                                                                 <div className="mb-2">
                                                                     {message.source_type?.includes('image') || message.source.type?.includes('image') ? (
-                                                                        <img
+                                                                        <Popup openTrigger={<img
                                                                             src={`${BASE_URL}${message.source.name || message.source.url}`}
                                                                             alt=""
                                                                             className="max-w-full max-h-80 rounded cursor-pointer"
                                                                             loading="lazy"
-                                                                            onClick={() => window.open(`${BASE_URL}${message.source.name || message.source.url}`, '_blank')}
-                                                                        />
+                                                                        />}>
+                                                                            <img
+                                                                                src={`${BASE_URL}${message.source.name || message.source.url}`}
+                                                                                alt=""
+                                                                                className="max-w-full m-auto max-h-[80vh] rounded cursor-pointer"
+                                                                                loading="lazy"
+                                                                            />
+                                                                        </Popup>
+
+
                                                                     ) : message.source.type?.includes('webm') ? (
                                                                         <audio
                                                                             src={`${BASE_URL}${message.source.name}`}
@@ -1320,6 +1578,7 @@ export default function Chat({ chat_id, chat_url }) {
                                                             onClick={() => {
                                                                 navigator.clipboard.writeText(message.content);
                                                                 setCloseContext(true);
+                                                                setAlert({ content: 'текст скопирован в буфер обмена', type: '' })
                                                             }}
                                                         >
                                                             Копировать текст
@@ -1475,7 +1734,7 @@ export default function Chat({ chat_id, chat_url }) {
                     </div>
                 </>
             ) : (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center h-screen">
                     <div className="text-center">
                         <p className="mb-4">Вы не состоите в этом чате</p>
                         <button
@@ -1487,6 +1746,8 @@ export default function Chat({ chat_id, chat_url }) {
                     </div>
                 </div>
             )}
+
+            <Alert id={Date.now()} content={alert?.content} type={alert?.type} />
         </div>
     );
 }

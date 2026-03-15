@@ -1,13 +1,11 @@
-
 const WebSocket = require('ws');
 const http = require('http');
 
 const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
-const clients = new Map();
-const chatRooms = new Map();
-const userChats = new Map(); 
+const clients = new Map(); // user_id -> { ws, lastPing, userName, currentChat }
+const chatRooms = new Map(); // chat_id -> Set(user_ids)
 
 const PING_INTERVAL = 30000;
 const CONNECTION_TIMEOUT = 60000;
@@ -15,9 +13,10 @@ const CONNECTION_TIMEOUT = 60000;
 wss.on('connection', (ws, req) => {
     console.log('New client connected from:', req.socket.remoteAddress);
     let currentUser = null;
-    let currentChat = null;
+    let currentUserName = null;
     
     ws.isAlive = true;
+    
     ws.on('pong', () => {
         ws.isAlive = true;
     });
@@ -25,107 +24,112 @@ wss.on('connection', (ws, req) => {
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
-            console.log('Received:', data.type, 'from user:', currentUser);
+            console.log('Received:', data.type, 'from user:', currentUser || 'unknown');
 
             switch (data.type) {
                 case 'join_chat':
-                    const { user_id, chat_id } = data;
+                    const { user_id, user_name, chat_id } = data;
                     currentUser = user_id;
-                    currentChat = chat_id;
+                    currentUserName = user_name;
                     
-                    clients.set(user_id, { ws, lastPing: Date.now() });
+                    // Сохраняем клиента
+                    clients.set(user_id, { 
+                        ws, 
+                        lastPing: Date.now(),
+                        userName: user_name,
+                        currentChat: chat_id 
+                    });
                     
+                    // Добавляем в комнату чата
                     if (!chatRooms.has(chat_id)) {
                         chatRooms.set(chat_id, new Set());
                     }
                     chatRooms.get(chat_id).add(user_id);
                     
-                    if (!userChats.has(user_id)) {
-                        userChats.set(user_id, new Set());
-                    }
-                    userChats.get(user_id).add(chat_id);
+                    console.log(`User ${user_id} (${user_name}) joined chat ${chat_id}`);
                     
-                    console.log(`User ${user_id} joined chat ${chat_id}`);
+                    // Отправляем список онлайн пользователей
+                    const onlineUsersInChat = getOnlineUsersInChat(chat_id);
+                    ws.send(JSON.stringify({
+                        type: 'online_users',
+                        users: onlineUsersInChat
+                    }));
                     
-                    // Уведомляем других участников
+                    // Уведомляем других участников о новом онлайн пользователе
                     broadcastToChat(chat_id, {
-                        type: 'user_joined',
-                        data: {
-                            user_id,
-                            chat_id,
-                            timestamp: new Date().toISOString()
-                        }
+                        type: 'online_users',
+                        users: getOnlineUsersInChat(chat_id)
                     }, ws);
+                    
+                    break;
+
+                case 'leave_chat':
+                    if (currentUser && data.chat_id) {
+                        const room = chatRooms.get(data.chat_id);
+                        if (room) {
+                            room.delete(currentUser);
+                            
+                            // Уведомляем остальных об изменении списка онлайн
+                            broadcastToChat(data.chat_id, {
+                                type: 'online_users',
+                                users: getOnlineUsersInChat(data.chat_id)
+                            }, ws);
+                        }
+                    }
+                    break;
+
+                case 'get_online_users':
+                    if (data.chat_id) {
+                        const onlineUsers = getOnlineUsersInChat(data.chat_id);
+                        ws.send(JSON.stringify({
+                            type: 'online_users',
+                            users: onlineUsers
+                        }));
+                    }
+                    break;
+
+                case 'typing_start':
+                case 'typing_stop':
+                    if (currentUser && currentUserName && data.chat_id) {
+                        broadcastToChat(data.chat_id, {
+                            type: data.type,
+                            user_id: currentUser,
+                            user_name: currentUserName,
+                            chat_id: data.chat_id
+                        }, ws);
+                    }
                     break;
 
                 case 'new_message':
-                    const { message: msgData } = data;
-                    // Валидация сообщения
-                    if (!msgData.content && !msgData.source_id) {
-                        ws.send(JSON.stringify({
-                            type: 'error',
-                            error: 'Message content or source is required'
-                        }));
-                        return;
+                    if (data.message && data.message.chat_id) {
+                        console.log(`New message in chat ${data.message.chat_id} from ${data.message.author_id}`);
+                        broadcastToChat(data.message.chat_id, {
+                            type: 'new_message',
+                            message: data.message
+                        }, ws);
                     }
-                    
-                    broadcastToChat(msgData.chat_id, {
-                        type: 'new_message',
-                        message: {
-                            ...msgData,
-                            timestamp: new Date().toISOString()
-                        }
-                    }, ws);
-                    
-                    // Сохраняем в историю (если нужно)
-                    // saveMessageToHistory(msgData);
-                    break;
-
-                case 'typing':
-                    // Индикатор набора текста
-                    broadcastToChat(data.chat_id, {
-                        type: 'typing',
-                        user_id: currentUser,
-                        chat_id: data.chat_id,
-                        is_typing: data.is_typing
-                    }, ws);
-                    break;
-
-                case 'mark_read':
-                    // Отметка о прочтении
-                    broadcastToChat(data.chat_id, {
-                        type: 'mark_read',
-                        user_id: currentUser,
-                        chat_id: data.chat_id,
-                        message_id: data.message_id
-                    }, ws);
                     break;
 
                 case 'delete_message':
-                    broadcastToChat(data.message.chat_id, {
-                        type: 'delete_message',
-                        message: data.message
-                    }, ws);
+                    if (data.message && data.message.chat_id) {
+                        broadcastToChat(data.message.chat_id, {
+                            type: 'delete_message',
+                            message: data.message
+                        }, ws);
+                    }
                     break;
 
                 case 'pin_message':
-                    broadcastToChat(currentChat, {
-                        type: 'pin_message',
-                        message: data.message
-                    }, ws);
+                    if (data.message && data.message.chat_id) {
+                        broadcastToChat(data.message.chat_id, {
+                            type: 'pin_message',
+                            message: data.message
+                        }, ws);
+                    }
                     break;
 
-                // Звонки с улучшенной обработкой
                 case 'call_offer':
-                    console.log(`Call offer in chat ${data.data.chat_id}`);
-                    // Проверяем, не занят ли кто-то уже звонком
-                    if (isCallActive(data.data.chat_id)) {
-                        ws.send(JSON.stringify({
-                            type: 'call_busy',
-                            data: { chat_id: data.data.chat_id }
-                        }));
-                        return;
-                    }
+                    console.log(`Call offer in chat ${data.data.chat_id} from ${currentUser}`);
                     
                     broadcastToChat(data.data.chat_id, {
                         type: 'call_offer',
@@ -133,19 +137,22 @@ wss.on('connection', (ws, req) => {
                             chat_id: data.data.chat_id,
                             offer: data.data.offer,
                             callType: data.data.callType || 'audio',
-                            caller_id: currentUser
+                            caller_id: currentUser,
+                            caller_name: currentUserName
                         }
                     }, ws);
                     break;
 
                 case 'call_answer':
-                    console.log(`Call answer in chat ${data.data.chat_id}`);
+                    console.log(`Call answer in chat ${data.data.chat_id} from ${currentUser}`);
+                    
                     broadcastToChat(data.data.chat_id, {
                         type: 'call_answer',
                         data: {
                             chat_id: data.data.chat_id,
                             answer: data.data.answer,
-                            user_id: currentUser
+                            user_id: currentUser,
+                            user_name: currentUserName
                         }
                     }, ws);
                     break;
@@ -155,24 +162,30 @@ wss.on('connection', (ws, req) => {
                         type: 'call_ice',
                         data: {
                             chat_id: data.data.chat_id,
-                            candidate: data.data.candidate
-                        }
-                    }, ws);
-                    break;
-
-                case 'call_end':
-                    console.log(`Call ended in chat ${data.data.chat_id}`);
-                    broadcastToChat(data.data.chat_id, {
-                        type: 'call_end',
-                        data: {
-                            chat_id: data.data.chat_id,
+                            candidate: data.data.candidate,
                             user_id: currentUser
                         }
                     }, ws);
                     break;
 
+                case 'call_end':
+                    console.log(`Call ended in chat ${data.data.chat_id} by ${currentUser}`);
+                    
+                    broadcastToChat(data.data.chat_id, {
+                        type: 'call_end',
+                        data: {
+                            chat_id: data.data.chat_id,
+                            user_id: currentUser,
+                            user_name: currentUserName
+                        }
+                    }, ws);
+                    break;
+
+                case 'ping':
+                    ws.send(JSON.stringify({ type: 'pong' }));
+                    break;
+
                 case 'pong':
-                    // Обновляем время последнего ответа
                     if (currentUser) {
                         const client = clients.get(currentUser);
                         if (client) {
@@ -183,44 +196,15 @@ wss.on('connection', (ws, req) => {
 
                 default:
                     console.log('Unknown message type:', data.type);
-                    ws.send(JSON.stringify({
-                        type: 'error',
-                        error: 'Unknown message type'
-                    }));
             }
         } catch (error) {
             console.error('Error processing message:', error);
-            ws.send(JSON.stringify({
-                type: 'error',
-                error: 'Invalid message format'
-            }));
         }
     });
 
     ws.on('close', () => {
         console.log('Client disconnected:', currentUser);
-        if (currentUser) {
-            const userChatsList = userChats.get(currentUser) || new Set();
-            userChatsList.forEach(chatId => {
-                const room = chatRooms.get(chatId);
-                if (room) {
-                    room.delete(currentUser);
-                    
-                    // Уведомляем других о выходе
-                    broadcastToChat(chatId, {
-                        type: 'user_left',
-                        data: {
-                            user_id: currentUser,
-                            chat_id: chatId,
-                            timestamp: new Date().toISOString()
-                        }
-                    });
-                }
-            });
-            
-            clients.delete(currentUser);
-            userChats.delete(currentUser);
-        }
+        handleUserDisconnect(currentUser);
     });
 
     ws.on('error', (error) => {
@@ -228,21 +212,58 @@ wss.on('connection', (ws, req) => {
     });
 });
 
-function isCallActive(chatId) {
-    // Реализуйте логику проверки активного звонка
-    return false;
+function handleUserDisconnect(userId) {
+    if (!userId) return;
+    
+    // Удаляем пользователя из всех чатов
+    chatRooms.forEach((users, chatId) => {
+        if (users.has(userId)) {
+            users.delete(userId);
+            
+            // Уведомляем остальных об изменении списка онлайн
+            broadcastToChat(chatId, {
+                type: 'online_users',
+                users: getOnlineUsersInChat(chatId)
+            });
+        }
+    });
+    
+    clients.delete(userId);
 }
 
-function broadcastToChat(chatId, message, senderWs = null) {
+function getOnlineUsersInChat(chatId) {
     const room = chatRooms.get(chatId);
-    if (!room) return;
+    if (!room) return [];
+    
+    const onlineUsers = [];
+    room.forEach(userId => {
+        const clientData = clients.get(userId);
+        if (clientData && clientData.ws.readyState === WebSocket.OPEN) {
+            onlineUsers.push({
+                id: userId,
+                name: clientData.userName || `User ${userId}`
+            });
+        }
+    });
+    
+    return onlineUsers;
+}
+
+function broadcastToChat(chatId, message, excludeWs = null) {
+    const room = chatRooms.get(chatId);
+    if (!room) {
+        console.log(`No room found for chat ${chatId}`);
+        return;
+    }
 
     const messageStr = JSON.stringify(message);
     let sentCount = 0;
 
     room.forEach(userId => {
         const clientData = clients.get(userId);
-        if (clientData && clientData.ws !== senderWs && clientData.ws.readyState === WebSocket.OPEN) {
+        if (clientData && 
+            clientData.ws !== excludeWs && 
+            clientData.ws.readyState === WebSocket.OPEN) {
             try {
                 clientData.ws.send(messageStr);
                 sentCount++;
@@ -252,49 +273,24 @@ function broadcastToChat(chatId, message, senderWs = null) {
         }
     });
 
-    console.log(`Broadcast to chat ${chatId}: sent to ${sentCount} users`);
+    if (sentCount > 0) {
+        console.log(`Broadcast to chat ${chatId}: ${message.type} sent to ${sentCount} users`);
+    }
 }
 
-// function sendToUser(userId, message) {
-//     const clientData = clients.get(userId);
-//     if (clientData && clientData.ws.readyState === WebSocket.OPEN) {
-//         clientData.ws.send(JSON.stringify(message));
-//         return true;
-//     }
-//     return false;
-// }
-
-// Пинг для поддержания соединения и проверки живых соединений
-
+// Пинг для поддержания соединения
 setInterval(() => {
-    clients.forEach((clientData, userId) => {
-        const { ws, lastPing } = clientData;
-        
-        if (Date.now() - lastPing > CONNECTION_TIMEOUT) {
-            console.log(`Terminating inactive connection for user ${userId}`);
-            ws.terminate();
-            clients.delete(userId);
-            return;
+    wss.clients.forEach((ws) => {
+        if (ws.isAlive === false) {
+            return ws.terminate();
         }
         
-        if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'ping' }));
-        }
+        ws.isAlive = false;
+        ws.ping();
     });
 }, PING_INTERVAL);
-
-// Очистка пустых комнат
-setInterval(() => {
-    chatRooms.forEach((users, chatId) => {
-        if (users.size === 0) {
-            chatRooms.delete(chatId);
-        }
-    });
-}, 60000);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`WebSocket server running on ws://localhost:${PORT}`);
-    console.log(`Ping interval: ${PING_INTERVAL}ms`);
-    console.log(`Connection timeout: ${CONNECTION_TIMEOUT}ms`);
 });
