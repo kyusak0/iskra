@@ -2,7 +2,7 @@ const http = require('http');
 const WebSocket = require('ws');
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001/api';
-const PORT = Number(process.env.PORT || 5001);
+const PORT = Number(process.env.PORT || 5000);
 const PING_INTERVAL = 30000;
 const CONNECTION_TIMEOUT = 60000;
 

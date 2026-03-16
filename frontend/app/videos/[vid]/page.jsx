@@ -326,7 +326,7 @@ export default function Videos() {
 
     const repost = async () => {
         const data = {
-            post_id: video.id,
+            video_id: video.id,
             link: `/videos/${video.url}`
         }
 

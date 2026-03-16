@@ -344,7 +344,11 @@ export const AuthProvider = ({ children }) => {
                 link,
                 data,
                 isFormData
-                    ? {}
+                    ? {
+                        headers:{
+                            'Content-Type': 'multipart/form-data'
+                        }
+                    }
                     : {
                         headers: {
                             'Content-Type': 'application/json'

@@ -262,7 +262,7 @@ export default function ProfilePage() {
                     <div className="flex gap-2 pb-2 items-center">
                         {post.source && post.source.type && post.source.type.includes('image') ? (
                             <img
-                                src={`${BASE_URL}${post.source.name}`}
+                                src={`${BASE_URL+ post.link.includes('posts/') ? post.posts.source.name : post.videos.cover.name || post.source.name}`}
                                 alt={post.title}
                                 className="h-20 w-20 object-cover bg-gray-100"
                             />
@@ -280,11 +280,11 @@ export default function ProfilePage() {
                         )}
                         <div className="w-full">
                             <p className="lg:text-2xl max-lg:text-xl truncate">
-                                {post.posts.title || 'Без названия'}
+                                {post.link.includes('posts/') ? post.posts.title : post.videos.title || 'Без названия'}
                             </p>
 
                             <p className="text-sm text-gray-600" title={post.desc}>
-                                {post.posts.desc || 'Нет описания'}
+                                {post.link.includes('posts/') ? post.posts.desc : post.videos.desc || 'Нет описания'}
                             </p>
                         </div>
                     </div>
@@ -325,7 +325,7 @@ export default function ProfilePage() {
                         <div className="flex gap-2 pb-2 items-center">
                             {videoItem.name && isVideoFile(videoItem) ? (
                                 <video
-                                    src={`${BASE_URL}${videoItem.name}`}
+                                    src={`${BASE_URL}${videoItem.source.name}`}
                                     className="h-20 w-20 object-cover bg-gray-100"
                                     controls={false}
                                     muted

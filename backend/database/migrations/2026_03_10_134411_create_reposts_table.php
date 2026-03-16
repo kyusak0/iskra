@@ -14,7 +14,8 @@ return new class extends Migration
         Schema::create('reposts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-            $table->foreignId('post_id')->constrained('posts')->cascadeOnDelete();
+            $table->foreignId('post_id')->nullable()->constrained('posts')->cascadeOnDelete();
+            $table->foreignId('video_id')->nullable()->constrained('videos')->cascadeOnDelete();
             $table->string('link');
             $table->timestamps();
         });

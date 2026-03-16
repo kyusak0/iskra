@@ -9,7 +9,7 @@ import Popup from '../../../components/popup/Popup';
 import Alert from '../../../components/alert/Alert';
 
 const BASE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8001/storage/';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:5001';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:5000';
 
 // Дебаунс функция для поиска
 const debounce = (func, wait) => {

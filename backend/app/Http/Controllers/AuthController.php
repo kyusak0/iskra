@@ -96,7 +96,7 @@ class AuthController extends Controller
     public function userInfo(Request $request, $id): JsonResponse
     {
         $user = User::with([
-            'posts', 'posts.source', 'sources', 'videos', 'reposts', 'reposts.posts', 'reposts.videos'
+            'posts', 'posts.source', 'sources', 'videos', 'reposts', 'reposts.posts', 'reposts.videos', 'reposts.posts.source', 'reposts.videos.cover'
         ])->findOrFail($id);
 
         $friendsCount = FriendRequest::query()

@@ -33,6 +33,6 @@ class Video extends Model
     }
 
     public function reposts(){
-        return $this->hasMany(Repost::class, 'post_id');
+        return $this->hasMany(Repost::class, 'video_id');
     }
 }

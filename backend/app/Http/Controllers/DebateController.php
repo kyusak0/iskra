@@ -306,12 +306,13 @@ class DebateController extends Controller
     public function repost(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'post_id' => 'required|integer',
+            'post_id' => 'nullable|integer',
+            'video_id' => 'nullable|integer',
             'link' => 'required|string|max:255',
         ]);
 
         if (str_contains($validated['link'], '/videos/')) {
-            Video::findOrFail($validated['post_id']);
+            Video::findOrFail($validated['video_id']);
         } else {
             Post::findOrFail($validated['post_id']);
         }
@@ -334,11 +335,19 @@ class DebateController extends Controller
             ]);
         }
 
-        $repost = Repost::create([
+        if (str_contains($validated['link'], '/videos/')) {
+            $repost = Repost::create([
+            'video_id' => $validated['video_id'],
+            'user_id' => $user->id,
+            'link' => $validated['link'],
+        ]);
+        } else {
+            $repost = Repost::create([
             'post_id' => $validated['post_id'],
             'user_id' => $user->id,
             'link' => $validated['link'],
         ]);
+        }
 
         return response()->json([
             'success' => true,

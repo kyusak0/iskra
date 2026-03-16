@@ -103,7 +103,6 @@ export default function Videos() {
         return `${url}-${timestamp}-${random}`;
     };
 
-    // Обновленная функция createVideo
     const createVideo = async (e) => {
         e.preventDefault();
         let cover_id = null, video_id = null;
@@ -127,8 +126,10 @@ export default function Videos() {
 
             const videoFormData = new FormData();
             videoFormData.append('file', video);
+            
             const loadVideo = await post('/load-file', videoFormData);
-            video_id = loadVideo.data.id;
+            console.log(loadVideo)
+            video_id = loadVideo.data?.id;
 
             if (file) {
                 if (!file.type.startsWith('image/')) {
@@ -161,7 +162,6 @@ export default function Videos() {
 
             const url = generateChatUrl(creatingData.title);
 
-            // Создаем видео с обложкой
             const videoData = {
                 title: creatingData.title,
                 desc: creatingData.desc,
