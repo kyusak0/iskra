@@ -30,6 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+#это мой сервер на 5001 порте
+server1.js
+
 # env files (can opt-in for committing if needed)
 .env*
 

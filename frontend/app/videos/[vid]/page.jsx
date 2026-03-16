@@ -9,7 +9,7 @@ import Link from "next/link";
 import Cookies from 'js-cookie';
 import ContextMenu from "../../../components/contextMenu/ContextMenu";
 
-const BASE_URL = 'http://localhost:8001/storage/';
+const BASE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8001/storage/';
 const VIEW_COOKIE_PREFIX = 'video_viewed_';
 const VIEW_COOKIE_EXPIRY = 1; // дней
 
@@ -40,10 +40,8 @@ export default function Videos() {
         try {
             let loadFile = null
             if (file) {
-                const formData = {
-                    file: file,
-                    author_id: user.id
-                }
+                const formData = new FormData();
+                formData.append('file', file);
 
                 loadFile = await post('/load-file', formData);
             }
@@ -209,11 +207,13 @@ export default function Videos() {
     // Функция удаления комментария
     const deleteMessage = async (message) => {
         try {
-            const response = await post('/delete-message', { id: message.id });
+            const response = await post('/delete-message', { message_id: message.id });
 
             if (response.success) {
-                // Обновляем список комментариев
-                setComments(prev => prev.filter(c => c.id !== message.id));
+                setVideo(prev => ({
+                    ...prev,
+                    messages: (prev?.messages || []).filter(c => c.id !== message.id),
+                }));
             }
         } catch (error) {
             console.error('Ошибка при удалении комментария:', error);
@@ -224,13 +224,19 @@ export default function Videos() {
     // Функция закрепления комментария
     const pinMessage = async (message) => {
         try {
+            const newPinnedState = message.is_pinned == 'true' ? 'false' : 'true';
             const response = await post('/pin-message', {
-                id: message.id,
-                post_id: postData?.id
+                message_id: message.id,
+                is_pinned: newPinnedState
             });
 
             if (response.success) {
-                alert('Комментарий закреплен');
+                setVideo(prev => ({
+                    ...prev,
+                    messages: (prev?.messages || []).map(item =>
+                        item.id === message.id ? { ...item, is_pinned: newPinnedState } : item
+                    ),
+                }));
             }
         } catch (error) {
             console.error('Ошибка при закреплении комментария:', error);
@@ -321,7 +327,6 @@ export default function Videos() {
     const repost = async () => {
         const data = {
             post_id: video.id,
-            user_id: user.id,
             link: `/videos/${video.url}`
         }
 

@@ -8,7 +8,7 @@ import { useAuth } from "../context/authContext";
 import Link from "next/link";
 import ContextMenu from "../components/contextMenu/ContextMenu";
 
-const BASE_URL = 'http://localhost:8001/storage/';
+const BASE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8001/storage/';
 
 export default function Home() {
   const [creatingData, setCreatingData] = useState({
@@ -82,10 +82,8 @@ export default function Home() {
       let loadFile = null;
 
       if (file) {
-        const formData = {
-          file: file,
-          author_id: user.id
-        }
+        const formData = new FormData();
+        formData.append('file', file);
 
         loadFile = await post('/load-file', formData);
       }
@@ -106,10 +104,16 @@ export default function Home() {
         id: result.data.id,
         title: result.data.title,
         desc: result.data.desc,
+        user: result.data.user,
         author_id: result.data.author_id,
-        author_name: result.data.author_name,
+        author_name: result.data.user?.name,
+        avatar: result.data.user?.avatar,
+        tags: result.data.tags || [],
         type: result.data.type,
-        source: loadFile?.data.name,
+        source: result.data.source?.name || loadFile?.data?.name,
+        source_type: result.data.source?.type || loadFile?.data?.type,
+        comments: 0,
+        url: result.data.url,
         created_at: new Date(result.data.created_at).toLocaleString()
       }
       ]);
@@ -239,10 +243,8 @@ export default function Home() {
     try {
       let loadFile = null
       if (file) {
-        const formData = {
-          file: file,
-          author_id: user.id
-        }
+        const formData = new FormData();
+        formData.append('file', file);
 
         loadFile = await post('/load-file', formData);
       }
@@ -260,7 +262,7 @@ export default function Home() {
 
 
 
-      const res = await post("/send-message/post", newData);
+      const res = await post(`/send-message/post/${postId}`, newData);
       console.log(res)
 
       setComments([...comments, {

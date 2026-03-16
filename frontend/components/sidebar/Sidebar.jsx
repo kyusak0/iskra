@@ -48,6 +48,10 @@ export default function Sidebar({ children }) {
                         className={`${clientPathname.includes('/chats') ? `bg-bg uppercase transition-all duration-300 ${open ? 'rounded-l-full pr-10' : 'rounded-full'} w-max` : ''} flex font-bold p-5`}>
                         <span title="Чаты"><img src="/comment.svg" className="w-5 h-5" alt="" /></span>
                         <span className={`transition-all duration-300 ${open ? 'ml-5' : 'hidden'}`}>Чаты</span></Link>
+                    <Link href="/friends"
+                        className={`${clientPathname.includes('/friends') ? `bg-bg uppercase transition-all duration-300 ${open ? 'rounded-l-full pr-10' : 'rounded-full'} w-max` : ''} flex font-bold p-5`}>
+                        <span title="Друзья"><img src="/profile.svg" className="w-5 h-5" alt="" /></span>
+                        <span className={`transition-all duration-300 ${open ? 'ml-5' : 'hidden'}`}>Друзья</span></Link>
                     <Link href="/videos"
                         className={`${clientPathname == '/videos' ? `bg-bg uppercase transition-all duration-300 ${open ? 'rounded-l-full pr-10' : 'rounded-full'} w-max` : ''} flex font-bold p-5`}>
                         <span title="Видео"><img src="/video.svg" className="w-5 h-5" alt="" /></span>

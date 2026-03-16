@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\FriendRequest;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
+    public function register(Request $request): JsonResponse
     {
         $request->validate([
             'name' => 'required|string|max:255',
@@ -30,11 +30,11 @@ class AuthController extends Controller
             'success' => true,
             'user' => $user,
             'token' => $token,
-            'message' => 'Registration successful'
+            'message' => 'Registration successful',
         ], 201);
     }
 
-    public function login(Request $request)
+    public function login(Request $request): JsonResponse
     {
         $request->validate([
             'email' => 'required|email',
@@ -44,13 +44,20 @@ class AuthController extends Controller
         if (!Auth::attempt($request->only('email', 'password'))) {
             return response()->json([
                 'success' => false,
-                'message' => 123,
-            ]);
+                'message' => 'Неверный email или пароль.',
+            ], 422);
         }
 
         $user = User::where('email', $request->email)->firstOrFail();
+
+        if ($user->is_blocked === 'true') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ваш аккаунт заблокирован.',
+            ], 423);
+        }
+
         if ($user->google2fa_enabled) {
-            // по желанию: удалить старые временные 2FA-токены
             $user->tokens()
                 ->where('name', '2fa-login')
                 ->delete();
@@ -63,7 +70,6 @@ class AuthController extends Controller
             ]);
         }
 
-        // Обычный вход без 2FA
         $token = $user->createToken('auth_token', ['*'])->plainTextToken;
 
         return response()->json([
@@ -71,46 +77,58 @@ class AuthController extends Controller
             'token' => $token,
             'user' => $user,
         ]);
-
-
     }
 
-    public function logout(Request $request)
+    public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()?->currentAccessToken()?->delete();
 
         return response()->json([
-            'message' => 'Logged out successfully'
+            'message' => 'Logged out successfully',
         ]);
     }
 
-    public function user(Request $request)
+    public function user(Request $request): JsonResponse
     {
         return response()->json($request->user());
     }
 
-    public function userInfo($id){
+    public function userInfo(Request $request, $id): JsonResponse
+    {
         $user = User::with([
             'posts', 'posts.source', 'sources', 'videos', 'reposts', 'reposts.posts', 'reposts.videos'
         ])->findOrFail($id);
-        if($user){
-            return response()->json([
-            'data' => $user,
-            'success' => true,
-        ]);
-        }
+
+        $friendsCount = FriendRequest::query()
+            ->accepted()
+            ->where(function ($query) use ($user) {
+                $query->where('sender_id', $user->id)
+                    ->orWhere('receiver_id', $user->id);
+            })
+            ->count();
+
+        $user->setAttribute('friends_count', $friendsCount);
+
         return response()->json([
-            'success' => false,
+            'success' => true,
+            'data' => $user,
         ]);
     }
 
-    public function setAvatar(Request $request){
-        $user = User::findOrFail($request->user_id);
-        $user->update(['avatar' => $request->avatar]);
+    public function setAvatar(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'avatar' => 'required|string|max:255',
+        ]);
+
+        $user = $request->user();
+        $user->update([
+            'avatar' => $validated['avatar'],
+        ]);
 
         return response()->json([
             'success' => true,
-            'data' => $user
+            'data' => $user->fresh(),
         ]);
     }
 }

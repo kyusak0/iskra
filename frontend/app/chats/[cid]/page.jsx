@@ -1,16 +1,15 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../context/authContext';
 import ContextMenu from '../../../components/contextMenu/ContextMenu';
 import Popup from '../../../components/popup/Popup';
 import Alert from '../../../components/alert/Alert';
-import { type } from 'node:os';
 
-const BASE_URL = 'http://localhost:8001/storage/';
-const WS_URL = 'ws://localhost:5000';
+const BASE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8001/storage/';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:5001';
 
 // Дебаунс функция для поиска
 const debounce = (func, wait) => {
@@ -25,19 +24,181 @@ const debounce = (func, wait) => {
     };
 };
 
+const normalizeReadByIds = (value) => {
+    if (!Array.isArray(value)) return [];
+
+    return [...new Set(
+        value
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id))
+    )];
+};
+
+const isMessagePinned = (message) => String(message?.is_pinned) === 'true';
+
+const formatMessageTime = (value) => {
+    if (!value) return new Date().toLocaleTimeString();
+
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return String(value);
+    }
+
+    return date.toLocaleTimeString();
+};
+const resolveOutgoingStatus = ({ message, currentUserId, members = [] }) => {
+    if (message?.delivery_status === 'sending' || message?.delivery_status === 'error') {
+        return message.delivery_status;
+    }
+
+    if (Number(message?.author_id) !== Number(currentUserId)) {
+        return null;
+    }
+
+    const memberIds = (members || [])
+        .map((member) => Number(member?.id ?? member))
+        .filter((id) => Number.isFinite(id) && id !== Number(currentUserId));
+
+    const readByIds = normalizeReadByIds(message?.read_by_user_ids || []);
+
+    if (memberIds.length > 0 && memberIds.every((id) => readByIds.includes(id))) {
+        return 'read';
+    }
+
+    if (message?.status_for_current_user === 'read') {
+        return 'read';
+    }
+
+    return 'sent';
+};
+const buildMessageState = (rawMessage, currentUserId, members = [], onlineUsers = []) => {
+
+    const readByIds = normalizeReadByIds(rawMessage?.read_by_user_ids || []);
+    const source = rawMessage?.source
+        ? {
+            id: rawMessage.source.id,
+            name: rawMessage.source.name || rawMessage.source.url,
+            type: rawMessage.source.type,
+            url: rawMessage.source.url || rawMessage.source.name,
+        }
+        : null;
+
+    const baseMessage = {
+        id: rawMessage?.id,
+        temp_id: rawMessage?.temp_id || null,
+        author_id: rawMessage?.author_id,
+        author_name: rawMessage?.author_name || rawMessage?.user?.name || `User ${rawMessage?.author_id}`,
+        content: rawMessage?.content ?? null,
+        created_at: formatMessageTime(rawMessage?.created_at),
+        created_at_raw: rawMessage?.created_at || new Date().toISOString(),
+        source,
+        source_type: rawMessage?.source_type || rawMessage?.source?.type || null,
+        answer_id: rawMessage?.answer_id || rawMessage?.message?.id || null,
+        answer_content: rawMessage?.answer_content || rawMessage?.message?.content || null,
+        is_pinned: rawMessage?.is_pinned || 'false',
+        read_by_user_ids: readByIds,
+        is_read_by_current_user: Boolean(rawMessage?.is_read_by_current_user || readByIds.includes(Number(currentUserId))),
+        delivery_status: rawMessage?.delivery_status || null,
+        error_message: rawMessage?.error_message || null,
+        retry_payload: rawMessage?.retry_payload || null,
+        status_for_current_user: rawMessage?.status_for_current_user || null,
+    };
+
+    return {
+        ...baseMessage,
+        delivery_status: resolveOutgoingStatus({
+            message: { ...baseMessage, read_by_user_ids: readByIds },
+            currentUserId,
+            members,
+            onlineUsers,
+        }),
+    };
+};
+
+const applyReadReceiptToMessage = (
+    message,
+    readerId,
+    currentUserId,
+    members = [],
+    onlineUsers = []
+) => {
+    const nextReadByIds = normalizeReadByIds([...(message?.read_by_user_ids || []), readerId]);
+
+    return buildMessageState({
+        ...message,
+        read_by_user_ids: nextReadByIds,
+        is_read_by_current_user:
+            message?.is_read_by_current_user || Number(readerId) === Number(currentUserId),
+    }, currentUserId, members, onlineUsers);
+};
+
+const getUnreadIncomingMessageIds = (messageList, currentUserId) => {
+    return (messageList || [])
+        .filter((message) => {
+            const isOwnMessage = Number(message?.author_id) === Number(currentUserId);
+            const hasRealId = Number.isFinite(Number(message?.id));
+            return !isOwnMessage && hasRealId && !message?.is_read_by_current_user;
+        })
+        .map((message) => Number(message.id));
+};
+
+const buildWsMessagePayload = (message) => ({
+    id: message?.id,
+    content: message?.content ?? null,
+    author_id: message?.author_id,
+    author_name: message?.author_name,
+    chat_id: message?.chat_id,
+    created_at: message?.created_at_raw || new Date().toISOString(),
+    answer_id: message?.answer_id || null,
+    answer_content: message?.answer_content || null,
+    source: message?.source || null,
+    source_type: message?.source_type || null,
+    is_pinned: message?.is_pinned || 'false',
+    read_by_user_ids: message?.read_by_user_ids || [],
+    status_for_current_user: message?.delivery_status || null,
+});
+
+function StreamVideo({ stream, muted = false, className = '' }) {
+    const videoRef = useRef(null);
+
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.srcObject = stream || null;
+        }
+    }, [stream]);
+
+    return (
+        <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted={muted}
+            className={className}
+        />
+    );
+}
+
+function StreamAudio({ stream }) {
+    const audioRef = useRef(null);
+
+    useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.srcObject = stream || null;
+        }
+    }, [stream]);
+
+    return <audio ref={audioRef} autoPlay playsInline />;
+}
+
 export default function Chat({ chat_id, chat_url }) {
     const params = useParams();
-    const router = useRouter();
     const { user, get, post } = useAuth();
 
     // Refs
-    const remoteAudioRef = useRef(null);
-    const remoteVideoRef = useRef(null);
     const localVideoRef = useRef(null);
     const timerRef = useRef(null);
     const wsRef = useRef(null);
     const messagesEndRef = useRef(null);
-    const peerRef = useRef(null);
     const localStreamRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const streamRef = useRef(null);
@@ -46,6 +207,12 @@ export default function Chat({ chat_id, chat_url }) {
     const isInitialized = useRef(false);
     const heartbeatInterval = useRef(null);
     const lastPongRef = useRef(Date.now());
+    const peerConnectionsRef = useRef(new Map());
+    const pendingCandidatesRef = useRef(new Map());
+    const callActiveRef = useRef(false);
+    const callTypeRef = useRef(null);
+    const readQueueRef = useRef(new Set());
+    const readSyncTimeoutRef = useRef(null);
 
     // States
     const [incomingCall, setIncomingCall] = useState(null);
@@ -54,7 +221,6 @@ export default function Chat({ chat_id, chat_url }) {
     const [callTime, setCallTime] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-    const [isCallMinimized, setIsCallMinimized] = useState(false);
     const [callParticipants, setCallParticipants] = useState([]);
     const [chatData, setChatData] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -79,6 +245,15 @@ export default function Chat({ chat_id, chat_url }) {
     const [showSearch, setShowSearch] = useState(false);
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [typingUsers, setTypingUsers] = useState([]);
+    const [remoteStreams, setRemoteStreams] = useState([]);
+
+    useEffect(() => {
+        callActiveRef.current = callActive;
+    }, [callActive]);
+
+    useEffect(() => {
+        callTypeRef.current = callType;
+    }, [callType]);
 
     // Get chat identifier
     const chatIdentifier = useCallback(() => {
@@ -87,6 +262,161 @@ export default function Chat({ chat_id, chat_url }) {
         if (params?.cid) return params.cid;
         return params?.url || null;
     }, [chat_id, chat_url, params])();
+
+    const syncPinnedMessages = useCallback((messageList = []) => {
+        setPinnedMessages((messageList || []).filter((message) => isMessagePinned(message)));
+    }, []);
+
+    const updateMessagesState = useCallback((updater) => {
+        setMessages((prevMessages) => {
+            const nextMessages = typeof updater === 'function' ? updater(prevMessages) : updater;
+            syncPinnedMessages(nextMessages);
+            return nextMessages;
+        });
+    }, [syncPinnedMessages]);
+
+    const syncLocalReadReceipts = useCallback((messageIds = [], readerId) => {
+        if (!readerId || !Array.isArray(messageIds) || messageIds.length === 0) {
+            return;
+        }
+
+        const messageIdSet = new Set(messageIds.map((id) => String(id)));
+
+        updateMessagesState((prevMessages) => prevMessages.map((message) => {
+            if (!messageIdSet.has(String(message.id))) {
+                return message;
+            }
+
+            return applyReadReceiptToMessage(
+                message,
+                readerId,
+                user?.id,
+                chatData?.members || [],
+                onlineUsers || []
+            );
+        }));
+    }, [chatData?.members, updateMessagesState, user?.id]);
+
+    const markMessagesAsRead = useCallback((messageIds = []) => {
+        if (!chatData?.id || !user?.id || !isMember) {
+            return;
+        }
+
+        const uniqueIds = [...new Set(
+            messageIds
+                .map((id) => Number(id))
+                .filter((id) => Number.isFinite(id))
+        )];
+
+        if (uniqueIds.length === 0) {
+            return;
+        }
+
+        uniqueIds.forEach((id) => readQueueRef.current.add(id));
+
+        if (readSyncTimeoutRef.current) {
+            return;
+        }
+
+        readSyncTimeoutRef.current = setTimeout(async () => {
+            const queuedIds = Array.from(readQueueRef.current)
+                .map((id) => Number(id))
+                .filter((id) => Number.isFinite(id));
+
+            readQueueRef.current.clear();
+            readSyncTimeoutRef.current = null;
+
+            if (queuedIds.length === 0) {
+                return;
+            }
+
+            const response = await post('/messages/read', {
+                chat_id: chatData.id,
+                message_ids: queuedIds,
+            }, { silent: true });
+
+            if (!response?.success) {
+                return;
+            }
+
+            const confirmedIds = Array.isArray(response?.data?.message_ids)
+                ? response.data.message_ids
+                : queuedIds;
+
+            syncLocalReadReceipts(confirmedIds, user.id);
+
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                    type: 'messages_read',
+                    data: {
+                        chat_id: chatData.id,
+                        message_ids: confirmedIds,
+                        reader_id: user.id,
+                        reader_name: user.name,
+                    },
+                }));
+            }
+        }, 250);
+    }, [chatData?.id, isMember, post, syncLocalReadReceipts, user?.id, user?.name]);
+
+    useEffect(() => {
+        return () => {
+            if (readSyncTimeoutRef.current) {
+                clearTimeout(readSyncTimeoutRef.current);
+                readSyncTimeoutRef.current = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        updateMessagesState((prevMessages) =>
+            prevMessages.map((message) =>
+                buildMessageState(
+                    message,
+                    user.id,
+                    chatData?.members || [],
+                    onlineUsers || []
+                )
+            )
+        );
+    }, [onlineUsers, chatData?.members, user?.id, updateMessagesState]);
+
+    useEffect(() => {
+        if (!chatData?.id || !user?.id || !isMember) {
+            return;
+        }
+
+        if (typeof document !== 'undefined' && document.hidden) {
+            return;
+        }
+
+        const unreadIds = getUnreadIncomingMessageIds(messages, user.id);
+        if (unreadIds.length > 0) {
+            markMessagesAsRead(unreadIds);
+        }
+    }, [chatData?.id, isMember, markMessagesAsRead, messages, user?.id]);
+
+    useEffect(() => {
+        if (typeof document === 'undefined') {
+            return undefined;
+        }
+
+        const handleVisibilityChange = () => {
+            if (document.hidden || !user?.id) {
+                return;
+            }
+
+            const unreadIds = getUnreadIncomingMessageIds(messages, user.id);
+            if (unreadIds.length > 0) {
+                markMessagesAsRead(unreadIds);
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [markMessagesAsRead, messages, user?.id]);
 
     // Загрузка данных чата
     const loadChatData = useCallback(async () => {
@@ -120,25 +450,12 @@ export default function Chat({ chat_id, chat_url }) {
                     displayAvatar: chatAvatar,
                 });
 
-                const formattedMessages = (res.data.messages || []).map(msg => ({
-                    id: msg.id,
-                    author_id: msg.author_id,
-                    author_name: msg.user?.name || `User ${msg.author_id}`,
-                    content: msg.content,
-                    created_at: new Date(msg.created_at).toLocaleTimeString(),
-                    source: msg.source ? {
-                        id: msg.source.id,
-                        name: msg.source.name,
-                        type: msg.source.type,
-                        url: msg.source.url
-                    } : null,
-                    answer_content: msg?.message?.content || null,
-                    answer_id: msg?.message?.id,
-                    is_pinned: msg.is_pinned || false
-                }));
+                const formattedMessages = (res.data.messages || []).map((msg) =>
+                    buildMessageState(msg, user?.id, res.data.members || [], onlineUsers || [])
+                );
 
                 setMessages(formattedMessages);
-                setPinnedMessages(formattedMessages.filter(m => m.is_pinned == 'true'));
+                setPinnedMessages(formattedMessages.filter((message) => isMessagePinned(message)));
 
                 setIsMember(res.data.members?.some(m => m.id === user?.id) || false);
 
@@ -191,9 +508,10 @@ export default function Chat({ chat_id, chat_url }) {
 
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 10;
+        let manualClose = false;
 
         const connectWebSocket = () => {
-            if (wsRef.current?.readyState === WebSocket.OPEN) return;
+            if (manualClose || wsRef.current?.readyState === WebSocket.OPEN) return;
 
             const ws = new WebSocket(WS_URL);
             wsRef.current = ws;
@@ -208,18 +526,9 @@ export default function Chat({ chat_id, chat_url }) {
 
                 ws.send(JSON.stringify({
                     type: 'join_chat',
-                    user_id: user.id,
-                    user_name: user.name,
-                    chat_id: chatData.id
+                    chat_id: chatData.id,
+                    token: getStoredToken(),
                 }));
-
-                // Запрашиваем список онлайн пользователей только для групповых чатов
-                if (chatData.type !== 'personal') {
-                    ws.send(JSON.stringify({
-                        type: 'get_online_users',
-                        chat_id: chatData.id
-                    }));
-                }
             };
 
             ws.onmessage = (event) => {
@@ -236,6 +545,35 @@ export default function Chat({ chat_id, chat_url }) {
                         case 'pong':
                             lastPongRef.current = Date.now();
                             break;
+
+                        case 'joined_chat': {
+                            setOnlineUsers(data.online_users || []);
+
+                            if (data.active_call) {
+                                const activeCall = data.active_call;
+                                const participants = activeCall.participants || [];
+                                syncCallParticipants(participants);
+
+                                if (!callActiveRef.current) {
+                                    const alreadyParticipant = participants.some(
+                                        participant => String(participant.id) === String(user.id)
+                                    );
+
+                                    if (!alreadyParticipant) {
+                                        setIncomingCall({
+                                            chat_id: activeCall.chat_id,
+                                            callType: activeCall.callType,
+                                            caller_id: activeCall.startedBy,
+                                            caller_name: activeCall.startedByName,
+                                            participants,
+                                        });
+                                    }
+                                }
+                            } else {
+                                setIncomingCall(null);
+                            }
+                            break;
+                        }
 
                         case 'online_users':
                             setOnlineUsers(data.users || []);
@@ -255,79 +593,137 @@ export default function Chat({ chat_id, chat_url }) {
                             break;
 
                         case 'new_message':
-                            if (data.message && data.message.chat_id === chatData.id) {
-                                setMessages(prev => {
-                                    if (prev.some(m => m.id === data.message.id)) return prev;
+                            if (data.message && String(data.message.chat_id) === String(chatData.id)) {
+                                updateMessagesState((prevMessages) => {
+                                    if (prevMessages.some((message) => String(message.id) === String(data.message.id))) {
+                                        return prevMessages;
+                                    }
 
-                                    const newMess = {
-                                        id: data.message.id,
-                                        author_id: data.message.author_id,
-                                        author_name: data.message.author_name || `User ${data.message.author_id}`,
-                                        content: data.message?.content,
-                                        source: data.message.source || null,
-                                        source_type: data.message.source_type,
-                                        created_at: new Date(data.message.created_at).toLocaleTimeString(),
-                                        answer_id: data.message.answer_id,
-                                        answer_content: data.message.answer_content,
-                                        is_pinned: data.message.is_pinned || false
-                                    };
+                                    const incomingMessage = buildMessageState(
+                                        data.message,
+                                        user?.id,
+                                        chatData?.members || []
+                                    );
 
-                                    return [...prev, newMess];
+                                    return [...prevMessages, incomingMessage];
                                 });
+
+                                const isIncomingForMe = Number(data.message.author_id) !== Number(user?.id);
+                                const hasRealId = Number.isFinite(Number(data.message.id));
+                                const isVisible = typeof document !== 'undefined' && !document.hidden;
+
+                                if (isIncomingForMe && hasRealId && isVisible) {
+                                    markMessagesAsRead([Number(data.message.id)]);
+                                }
+                            }
+                            break;
+
+                        case 'messages_read':
+                            if (String(data.data?.chat_id) === String(chatData.id)) {
+                                syncLocalReadReceipts(
+                                    data.data?.message_ids || [],
+                                    data.data?.reader_id
+                                );
                             }
                             break;
 
                         case 'delete_message':
                             if (data.message?.id) {
-                                setMessages(prev => prev.filter(item => item.id !== data.message.id));
+                                updateMessagesState((prevMessages) => prevMessages.filter((item) => item.id !== data.message.id));
                             }
                             break;
 
                         case 'pin_message':
                             if (data.message?.id) {
-                                setMessages(prev => {
-                                    const updated = prev.map(msg =>
-                                        msg.id === data.message.id
-                                            ? { ...msg, is_pinned: data.message.is_pinned }
-                                            : msg
-                                    );
-                                    setPinnedMessages(updated.filter(m => m.is_pinned));
-                                    return updated;
+                                updateMessagesState((prevMessages) => prevMessages.map((message) => (
+                                    message.id === data.message.id
+                                        ? buildMessageState({
+                                            ...message,
+                                            is_pinned: data.message.is_pinned,
+                                        }, user?.id, chatData?.members || [], onlineUsers || [])
+                                        : message
+                                )));
+                            }
+                            break;
+
+                        case 'call_started':
+                            if (!callActiveRef.current) {
+                                setIncomingCall({
+                                    chat_id: data.data.chat_id,
+                                    callType: data.data.callType,
+                                    caller_id: data.data.caller_id,
+                                    caller_name: data.data.caller_name,
+                                    participants: data.data.participants || [],
                                 });
                             }
                             break;
 
-                        // Обработка звонков
+                        case 'call_participants':
+                            syncCallParticipants(data.data?.participants || []);
+                            break;
+
+                        case 'call_participant_joined':
+                            syncCallParticipants(data.data?.participants || []);
+                            if (
+                                callActiveRef.current &&
+                                localStreamRef.current &&
+                                String(data.data?.user_id) !== String(user.id)
+                            ) {
+                                createOfferForParticipant(
+                                    data.data.user_id,
+                                    data.data.user_name,
+                                    data.data.callType || callTypeRef.current || 'audio'
+                                );
+                            }
+                            break;
+
                         case 'call_offer':
-                            setIncomingCall({
-                                chat_id: data.data.chat_id,
-                                offer: data.data.offer,
-                                callType: data.data.callType,
-                                caller_id: data.data.caller_id,
-                                caller_name: data.data.caller_name
-                            });
+                            handleIncomingOffer(data.data);
                             break;
 
                         case 'call_answer':
-                            if (peerRef.current) {
-                                peerRef.current.setRemoteDescription(new RTCSessionDescription(data.data.answer))
-                                    .catch(err => console.error('Error setting remote description:', err));
-                            }
+                            handleIncomingAnswer(data.data);
                             break;
 
                         case 'call_ice':
-                            if (peerRef.current) {
-                                peerRef.current.addIceCandidate(new RTCIceCandidate(data.data.candidate))
-                                    .catch(err => console.error('Error adding ICE candidate:', err));
-                            }
+                            handleIncomingIce(data.data);
                             break;
 
-                        case 'call_end':
-                            handleCallEnd();
+                        case 'call_participant_left':
+                            if (data.data?.participants) {
+                                syncCallParticipants(data.data.participants);
+                            } else if (data.data?.user_id) {
+                                removeCallParticipant(data.data.user_id);
+                            }
+                            handleParticipantLeft(data.data?.user_id);
+                            break;
+
+                        case 'call_finished':
+                            handleCallFinished();
                             break;
 
                         case 'call_busy':
-                            alert('В чате уже идет звонок');
+                            cleanupCallResources(false);
+                            setAlert({
+                                content: 'В чате уже идет звонок',
+                                type: 'err'
+                            });
+                            if (data.data) {
+                                setIncomingCall({
+                                    chat_id: data.data.chat_id,
+                                    callType: data.data.callType,
+                                    caller_id: data.data.startedBy,
+                                    caller_name: data.data.startedByName,
+                                    participants: data.data.participants || [],
+                                });
+                            }
+                            break;
+
+                        case 'error':
+                            setAlert({
+                                content: data.message || 'Ошибка websocket-соединения',
+                                type: 'err'
+                            });
                             break;
 
                         default:
@@ -348,8 +744,8 @@ export default function Chat({ chat_id, chat_url }) {
                     heartbeatInterval.current = null;
                 }
 
-                if (reconnectAttempts < maxReconnectAttempts) {
-                    reconnectAttempts++;
+                if (!manualClose && reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts += 1;
                     const timeout = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 30000);
 
                     if (wsReconnectTimeout.current) {
@@ -369,6 +765,8 @@ export default function Chat({ chat_id, chat_url }) {
         connectWebSocket();
 
         return () => {
+            manualClose = true;
+
             if (heartbeatInterval.current) {
                 clearInterval(heartbeatInterval.current);
                 heartbeatInterval.current = null;
@@ -383,8 +781,6 @@ export default function Chat({ chat_id, chat_url }) {
                 if (wsRef.current.readyState === WebSocket.OPEN) {
                     wsRef.current.send(JSON.stringify({
                         type: 'leave_chat',
-                        user_id: user.id,
-                        user_name: user.name,
                         chat_id: chatData.id
                     }));
                 }
@@ -392,17 +788,9 @@ export default function Chat({ chat_id, chat_url }) {
                 wsRef.current = null;
             }
 
-            if (peerRef.current) {
-                peerRef.current.close();
-                peerRef.current = null;
-            }
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(track => track.stop());
-                localStreamRef.current = null;
-            }
-            stopTimer();
+            cleanupCallResources(false);
         };
-    }, [chatData?.id, user?.id, isMember, startHeartbeat, chatData?.type]);
+    }, [chatData?.id, user?.id, isMember, startHeartbeat]);
 
     const handleTyping = useCallback(
         debounce((isTyping) => {
@@ -487,124 +875,256 @@ export default function Chat({ chat_id, chat_url }) {
 
         handleTyping(false);
 
+        const messageContent = content;
+        const answerMessage = answer ? { ...answer } : null;
+        const selectedFile = file;
+        const selectedRecording = recording;
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
         let loadFile = null;
         let voiceFile = null;
-        const tempId = Date.now();
 
         try {
-            if (file) {
+            if (selectedFile) {
                 const formData = new FormData();
-                formData.append('file', file);
+                formData.append('file', selectedFile);
                 formData.append('author_id', user.id);
-                loadFile = await post('/load-file', formData);
+                loadFile = await post('/load-file', formData, { silent: true });
+
+                if (!loadFile?.success) {
+                    throw new Error(loadFile?.error || loadFile?.message || 'Не удалось загрузить файл.');
+                }
             }
 
-            if (recording?.blob) {
+            if (selectedRecording?.blob) {
                 const voiceFormData = new FormData();
-                voiceFormData.append('file', recording.blob, recording.name);
+                voiceFormData.append('file', selectedRecording.blob, selectedRecording.name);
                 voiceFormData.append('author_id', user.id);
                 voiceFormData.append('type', 'voice');
-                voiceFile = await post('/load-file', voiceFormData);
+                voiceFile = await post('/load-file', voiceFormData, { silent: true });
+
+                if (!voiceFile?.success) {
+                    throw new Error(voiceFile?.error || voiceFile?.message || 'Не удалось загрузить голосовое сообщение.');
+                }
             }
 
+            const resolvedSource = voiceFile?.data || loadFile?.data || null;
+
             if (!isConnected) {
-                setAlert({ content: 'Нет подключения к интернету', type: 'err' });
-                return;
+                throw new Error('Нет подключения к websocket-серверу.');
             }
 
             if (forwardMessages.length > 0) {
-                for (const fwdMsg of forwardMessages) {
-                    await post("/send-message/chat", {
-                        author_id: user.id,
+                for (const forwardedMessage of forwardMessages) {
+                    const forwardResponse = await post('/send-message/chat', {
                         chat_id: chatData.id,
-                        content: `📨 Пересланное сообщение от ${fwdMsg.author_name}:\n${fwdMsg.content}`,
-                        source_id: fwdMsg.source?.id || null,
-                        source_type: fwdMsg.source_type,
-                    });
+                        content: `📨 Пересланное сообщение от ${forwardedMessage.author_name}:\n${forwardedMessage.content || ''}`.trim(),
+                        source_id: forwardedMessage.source?.id || null,
+                        source_type: forwardedMessage.source_type,
+                    }, { silent: true });
+
+                    if (!forwardResponse?.success || !forwardResponse?.data?.id) {
+                        throw new Error(forwardResponse?.error || forwardResponse?.message || 'Не удалось переслать сообщение.');
+                    }
+
+                    const sentForwardMessage = buildMessageState({
+                        ...forwardResponse.data,
+                        author_name: user.name,
+                        source: forwardResponse.data.source || forwardedMessage.source || null,
+                        source_type: forwardResponse.data.source_type || forwardedMessage.source_type,
+                    }, user.id, chatData?.members || [], onlineUsers || []);
+
+                    updateMessagesState((prevMessages) => [...prevMessages, sentForwardMessage]);
+
+                    if (wsRef.current?.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({
+                            type: 'new_message',
+                            message: buildWsMessagePayload({
+                                ...sentForwardMessage,
+                                chat_id: chatData.id,
+                            }),
+                        }));
+                    }
                 }
+
                 setForwardMessages([]);
                 setShowForwardSelector(false);
+
+                if (!messageContent.trim() && !selectedFile && !selectedRecording) {
+                    return;
+                }
             }
 
-            const optimisticMessage = {
-                id: tempId,
-                author_id: user.id,
-                author_name: user.name,
-                content: content || null,
-                source: loadFile?.data || voiceFile?.data || null,
-                source_type: recording ? 'voice' : (file ? 'file' : null),
-                created_at: new Date().toLocaleTimeString(),
-                isSending: true
+            const retryPayload = {
+                chat_id: chatData.id,
+                content: messageContent,
+                answer_id: answerMessage?.id || null,
+                source_id: resolvedSource?.id || null,
+                source_type: selectedRecording ? 'voice' : (selectedFile ? 'file' : null),
             };
 
-            setMessages(prev => [...prev, optimisticMessage]);
+            const optimisticMessage = buildMessageState({
+                id: tempId,
+                temp_id: tempId,
+                author_id: user.id,
+                author_name: user.name,
+                content: messageContent || null,
+                source: resolvedSource,
+                source_type: retryPayload.source_type,
+                created_at: new Date().toISOString(),
+                answer_id: answerMessage?.id || null,
+                answer_content: answerMessage?.content || null,
+                delivery_status: 'sending',
+                retry_payload: retryPayload,
+            }, user.id, chatData?.members || [], onlineUsers || []);
 
-            setContent("");
+            updateMessagesState((prevMessages) => [...prevMessages, optimisticMessage]);
+
+            setContent('');
             setAnswer(null);
             setFile(null);
-            if (recording) {
-                URL.revokeObjectURL(recording.url);
+            if (selectedRecording) {
+                URL.revokeObjectURL(selectedRecording.url);
                 setRecording(null);
             }
 
-            const res = await post("/send-message/chat", {
-                author_id: user.id,
-                chat_id: chatData.id,
-                content: content,
-                answer_id: answer?.id || null,
-                source_id: voiceFile?.data?.id || loadFile?.data?.id || null,
-                source_type: recording ? 'voice' : (file ? 'file' : null),
-            });
+            const response = await post('/send-message/chat', retryPayload, { silent: true });
+            if (!response?.success || !response?.data?.id) {
+                throw new Error(response?.error || response?.message || 'Не удалось отправить сообщение.');
+            }
 
-            setMessages(prev =>
-                prev.map(msg =>
-                    msg.id === tempId
-                        ? {
-                            id: res.data.id,
-                            author_id: res.data.author_id,
-                            author_name: user.name,
-                            content: res.data?.content,
-                            created_at: new Date(res.data.created_at).toLocaleTimeString(),
-                            isSending: false,
-                            answer_id: res.data.answer_id,
-                            answer_content: res.data.message?.content,
-                            source: voiceFile?.data || loadFile?.data || null,
-                            source_type: recording ? 'voice' : (file ? 'file' : null),
-                        }
-                        : msg
-                )
-            );
+            const sentMessage = buildMessageState({
+                ...response.data,
+                author_name: user.name,
+                source: response.data.source || resolvedSource,
+                source_type: response.data.source_type || retryPayload.source_type,
+            }, user.id, chatData?.members || [], onlineUsers || []);
+
+            updateMessagesState((prevMessages) => prevMessages.map((message) => (
+                String(message.id) === String(tempId)
+                    ? { ...sentMessage, retry_payload: retryPayload }
+                    : message
+            )));
 
             if (wsRef.current?.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({
                     type: 'new_message',
-                    message: {
-                        id: res.data.id,
-                        content: res.data?.content,
-                        author_id: res.data.author_id,
-                        author_name: user.name,
+                    message: buildWsMessagePayload({
+                        ...sentMessage,
                         chat_id: chatData.id,
-                        created_at: res.data.created_at,
-                        answer_id: res.data.answer_id,
-                        answer_content: res.data.message?.content,
-                        source: voiceFile?.data || loadFile?.data || null,
-                        source_type: recording ? 'voice' : (file ? 'file' : null),
-                    }
+                    }),
                 }));
             }
         } catch (err) {
             console.error('Error sending message:', err);
-            setAlert({ content: 'Ошибка при отправке сообщения \n' + err.message, type: 'err' });
-            setMessages(prev => prev.filter(msg => msg.id !== tempId));
+
+            const resolvedSource = voiceFile?.data || loadFile?.data || null;
+            const failedMessage = buildMessageState({
+                id: tempId,
+                temp_id: tempId,
+                author_id: user.id,
+                author_name: user.name,
+                content: messageContent || null,
+                source: resolvedSource,
+                source_type: selectedRecording ? 'voice' : (selectedFile ? 'file' : null),
+                created_at: new Date().toISOString(),
+                answer_id: answerMessage?.id || null,
+                answer_content: answerMessage?.content || null,
+                delivery_status: 'error',
+                error_message: err?.message || 'Неизвестная ошибка отправки.',
+                retry_payload: {
+                    chat_id: chatData.id,
+                    content: messageContent,
+                    answer_id: answerMessage?.id || null,
+                    source_id: resolvedSource?.id || null,
+                    source_type: selectedRecording ? 'voice' : (selectedFile ? 'file' : null),
+                },
+            }, user.id, chatData?.members || [], onlineUsers || []);
+
+            updateMessagesState((prevMessages) => {
+                const existingIndex = prevMessages.findIndex((message) => String(message.id) === String(tempId));
+
+                if (existingIndex !== -1) {
+                    return prevMessages.map((message) => (
+                        String(message.id) === String(tempId) ? failedMessage : message
+                    ));
+                }
+
+                if (!messageContent.trim() && !resolvedSource) {
+                    return prevMessages;
+                }
+
+                return [...prevMessages, failedMessage];
+            });
+
+            setAlert({ content: `Ошибка при отправке сообщения\n${err?.message || 'Неизвестная ошибка'}`, type: 'err' });
+        }
+    };
+
+    const retryFailedMessage = async (message) => {
+        if (!message?.retry_payload) {
+            return;
+        }
+
+        updateMessagesState((prevMessages) => prevMessages.map((item) => (
+            String(item.id) === String(message.id)
+                ? buildMessageState({
+                    ...item,
+                    delivery_status: 'sending',
+                    error_message: null,
+                }, user?.id, chatData?.members || [], onlineUsers || [])
+                : item
+        )));
+
+        try {
+            const response = await post('/send-message/chat', message.retry_payload, { silent: true });
+            if (!response?.success || !response?.data?.id) {
+                throw new Error(response?.error || response?.message || 'Не удалось повторно отправить сообщение.');
+            }
+
+            const resentMessage = buildMessageState({
+                ...response.data,
+                author_name: user.name,
+                source: response.data.source || message.source || null,
+                source_type: response.data.source_type || message.source_type,
+            }, user.id, chatData?.members || [], onlineUsers || []);
+
+            updateMessagesState((prevMessages) => prevMessages.map((item) => (
+                String(item.id) === String(message.id)
+                    ? { ...resentMessage, retry_payload: message.retry_payload }
+                    : item
+            )));
+
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                    type: 'new_message',
+                    message: buildWsMessagePayload({
+                        ...resentMessage,
+                        chat_id: chatData.id,
+                    }),
+                }));
+            }
+        } catch (err) {
+            console.error('Retry send error:', err);
+            updateMessagesState((prevMessages) => prevMessages.map((item) => (
+                String(item.id) === String(message.id)
+                    ? buildMessageState({
+                        ...item,
+                        delivery_status: 'error',
+                        error_message: err?.message || 'Повторная отправка не удалась.',
+                    }, user?.id, chatData?.members || [], onlineUsers || [])
+                    : item
+            )));
+            setAlert({ content: `Повторная отправка не удалась\n${err?.message || 'Неизвестная ошибка'}`, type: 'err' });
         }
     };
 
     // Удаление сообщения
     const deleteMess = async (message) => {
         try {
-            await post('/delete-message', { message_id: message.id });
+            await post('/delete-message', { message_id: message.id }, { silent: true });
 
-            setMessages(prev => prev.filter(item => item.id !== message.id));
+            updateMessagesState((prevMessages) => prevMessages.filter((item) => item.id !== message.id));
 
             if (wsRef.current?.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({
@@ -627,15 +1147,16 @@ export default function Chat({ chat_id, chat_url }) {
             await post('/pin-message', {
                 message_id: message.id,
                 is_pinned: newPinState
-            });
+            }, { silent: true });
 
-            setMessages(prev => {
-                const updated = prev.map(msg =>
-                    msg.id === message.id ? { ...msg, is_pinned: newPinState } : msg
-                );
-                setPinnedMessages(updated.filter(m => m.is_pinned));
-                return updated;
-            });
+            updateMessagesState((prevMessages) => prevMessages.map((item) => (
+                item.id === message.id
+                    ? buildMessageState({
+                        ...item,
+                        is_pinned: newPinState,
+                    }, user?.id, chatData?.members || [], onlineUsers || [])
+                    : item
+            )));
 
             if (wsRef.current?.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({
@@ -713,84 +1234,59 @@ export default function Chat({ chat_id, chat_url }) {
         try {
             const sentMessages = [];
 
-            for (const msg of forwardMessages) {
-                const response = await post("/send-message/chat", {
-                    author_id: user.id,
+            for (const messageToForward of forwardMessages) {
+                const response = await post('/send-message/chat', {
                     chat_id: targetChatId,
-                    content: `📨 Пересланное сообщение от ${msg.author_name}:\n${msg.content}`,
-                    source_id: msg.source?.id || null,
-                    source_type: msg.source_type,
-                });
+                    content: `📨 Пересланное сообщение от ${messageToForward.author_name}:\n${messageToForward.content || ''}`.trim(),
+                    source_id: messageToForward.source?.id || null,
+                    source_type: messageToForward.source_type,
+                }, { silent: true });
 
-                sentMessages.push(response.data);
+                if (!response?.success || !response?.data?.id) {
+                    throw new Error(response?.error || response?.message || 'Не удалось переслать сообщение.');
+                }
 
-                // Отправляем через WebSocket каждое сообщение
+                const sentForwardMessage = buildMessageState({
+                    ...response.data,
+                    author_name: user.name,
+                    source: response.data.source || messageToForward.source || null,
+                    source_type: response.data.source_type || messageToForward.source_type,
+                }, user.id, chatData?.members || [], onlineUsers || []);
+
+                sentMessages.push(sentForwardMessage);
+
                 if (wsRef.current?.readyState === WebSocket.OPEN) {
                     wsRef.current.send(JSON.stringify({
                         type: 'new_message',
-                        message: {
-                            id: response.data.id,
-                            content: response.data.content,
-                            author_id: user.id,
-                            author_name: user.name,
+                        message: buildWsMessagePayload({
+                            ...sentForwardMessage,
                             chat_id: targetChatId,
-                            created_at: response.data.created_at,
-                            answer_id: response.data.answer_id,
-                            answer_content: response.data.message?.content,
-                            source: response.data.source || null,
-                            source_type: response.data.source_type,
-                        }
+                        }),
                     }));
                 }
             }
 
-            // Очищаем список пересылаемых сообщений
             setForwardMessages([]);
             setShowForwardSelector(false);
 
-            // Обновляем локальное состояние сообщений, если нужно
-            if (sentMessages.length > 0) {
-                setMessages(prev => [
-                    ...prev,
-                    ...sentMessages.map(msg => ({
-                        id: msg.id,
-                        author_id: msg.author_id,
-                        author_name: user.name,
-                        content: msg.content,
-                        created_at: new Date(msg.created_at).toLocaleTimeString(),
-                        isSending: false,
-                        answer_id: msg.answer_id,
-                        answer_content: msg.message?.content,
-                        source: msg.source || null,
-                        source_type: msg.source_type,
-                    }))
-                ]);
+            if (sentMessages.length > 0 && String(targetChatId) === String(chatData?.id)) {
+                updateMessagesState((prevMessages) => [...prevMessages, ...sentMessages]);
             }
-
         } catch (err) {
             console.error('Error forwarding messages:', err);
             setAlert({
-                content: `Ошибка при пересылке сообщений: ${err.message}`,
+                content: `Ошибка при пересылке сообщений: ${err?.message || 'Неизвестная ошибка'}`,
                 type: 'err'
             });
         }
     };
+
     // Вступление в чат
     const joinChat = async () => {
         try {
             await post('/subscribe', {
-                user_id: user.id,
                 chat_id: chatData.id,
             });
-
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({
-                    type: 'user_joined',
-                    user_id: user.id,
-                    user_name: user.name,
-                    chat_id: chatData.id
-                }));
-            }
 
             await post("/send-message/chat", {
                 author_id: user.id,
@@ -799,10 +1295,10 @@ export default function Chat({ chat_id, chat_url }) {
             });
 
             setIsMember(true);
+            isInitialized.current = false;
 
             const res = await get(`/get-chat-info/${chatData.id}`);
             if (res?.data) {
-                // Обновляем данные с учетом personal чата
                 let chatTitle = res.data.title;
                 let chatAvatar = res.data.avatar;
 
@@ -826,185 +1322,432 @@ export default function Chat({ chat_id, chat_url }) {
     };
 
     // Звонки
-    const startCall = async (type = 'audio') => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: type === 'video'
-            });
+    const getStoredToken = () => {
+        if (typeof window === 'undefined') {
+            return null;
+        }
 
-            localStreamRef.current = stream;
+        return localStorage.getItem('token');
+    };
 
-            // Привязываем локальное видео сразу
-            if (type === 'video' && localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-                localVideoRef.current.play().catch(e => console.log('Error playing local video:', e));
+    const mergeParticipants = useCallback((participants = []) => {
+        const map = new Map();
+
+        participants.forEach((participant) => {
+            if (!participant?.id) {
+                return;
             }
 
-            const peer = new RTCPeerConnection({
-                iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
-                    { urls: "stun:stun1.l.google.com:19302" }
-                ]
+            map.set(String(participant.id), {
+                id: participant.id,
+                name: participant.name || `User ${participant.id}`,
             });
-            peerRef.current = peer;
+        });
 
-            // Добавляем все треки
-            stream.getTracks().forEach(track => {
-                peer.addTrack(track, stream);
-            });
+        return Array.from(map.values());
+    }, []);
 
-            peer.onicecandidate = (event) => {
-                if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(JSON.stringify({
-                        type: "call_ice",
-                        data: {
-                            chat_id: chatData.id,
-                            candidate: event.candidate
-                        }
-                    }));
-                }
-            };
+    const syncCallParticipants = useCallback((participants = []) => {
+        setCallParticipants(mergeParticipants(participants));
+    }, [mergeParticipants]);
 
-            peer.ontrack = (event) => {
-                console.log('Received remote track', event.track.kind);
+    const upsertCallParticipant = useCallback((participant) => {
+        if (!participant?.id) {
+            return;
+        }
 
-                const remoteStream = new MediaStream();
-                event.streams[0].getTracks().forEach(track => {
-                    remoteStream.addTrack(track);
+        setCallParticipants((prev) => mergeParticipants([...prev, participant]));
+    }, [mergeParticipants]);
+
+    const removeCallParticipant = useCallback((participantId) => {
+        setCallParticipants((prev) => prev.filter((participant) => String(participant.id) !== String(participantId)));
+    }, []);
+
+    const upsertRemoteStream = useCallback((userId, userName, stream) => {
+        if (!userId || !stream) {
+            return;
+        }
+
+        setRemoteStreams((prev) => {
+            const next = prev.filter((remote) => String(remote.userId) !== String(userId));
+            return [
+                ...next,
+                {
+                    userId,
+                    userName: userName || `User ${userId}`,
+                    stream,
+                },
+            ];
+        });
+    }, []);
+
+    const removeRemoteStream = useCallback((userId) => {
+        setRemoteStreams((prev) => prev.filter((remote) => String(remote.userId) !== String(userId)));
+    }, []);
+
+    const closePeerConnection = useCallback((remoteUserId) => {
+        const remoteKey = String(remoteUserId);
+        const peer = peerConnectionsRef.current.get(remoteKey);
+
+        if (peer) {
+            try {
+                peer.onicecandidate = null;
+                peer.ontrack = null;
+                peer.onconnectionstatechange = null;
+                peer.close();
+            } catch (error) {
+                console.error('Error closing peer connection:', error);
+            }
+        }
+
+        peerConnectionsRef.current.delete(remoteKey);
+        pendingCandidatesRef.current.delete(remoteKey);
+    }, []);
+
+    const flushPendingCandidates = useCallback(async (remoteUserId) => {
+        const remoteKey = String(remoteUserId);
+        const peer = peerConnectionsRef.current.get(remoteKey);
+        const queuedCandidates = pendingCandidatesRef.current.get(remoteKey) || [];
+
+        if (!peer || !peer.remoteDescription) {
+            return;
+        }
+
+        for (const candidate of queuedCandidates) {
+            try {
+                await peer.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (error) {
+                console.error('Error flushing ICE candidate:', error);
+            }
+        }
+
+        pendingCandidatesRef.current.delete(remoteKey);
+    }, []);
+
+    const ensureLocalStream = useCallback(async (requestedCallType = 'audio') => {
+        const needsVideo = requestedCallType === 'video';
+        const currentStream = localStreamRef.current;
+        const hasVideoTrack = currentStream?.getVideoTracks?.().length > 0;
+
+        if (currentStream && (!needsVideo || hasVideoTrack)) {
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = needsVideo ? currentStream : null;
+            }
+            return currentStream;
+        }
+
+        if (currentStream) {
+            currentStream.getTracks().forEach((track) => track.stop());
+            localStreamRef.current = null;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: needsVideo,
+        });
+
+        localStreamRef.current = stream;
+        setIsMuted(false);
+        setIsVideoEnabled(needsVideo);
+
+        if (localVideoRef.current) {
+            localVideoRef.current.srcObject = needsVideo ? stream : null;
+            if (needsVideo) {
+                localVideoRef.current.play().catch((error) => {
+                    console.log('Error playing local video:', error);
                 });
+            }
+        }
 
-                if (type === 'video') {
-                    if (remoteVideoRef.current) {
-                        remoteVideoRef.current.srcObject = remoteStream;
-                        remoteVideoRef.current.play().catch(e => console.log('Error playing remote video:', e));
-                    }
-                } else {
-                    if (remoteAudioRef.current) {
-                        remoteAudioRef.current.srcObject = remoteStream;
-                    }
-                }
-            };
+        return stream;
+    }, []);
 
-            const offer = await peer.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: type === 'video'
+    const createPeerConnection = useCallback((remoteUserId, remoteUserName, requestedCallType = 'audio') => {
+        const remoteKey = String(remoteUserId);
+        const existingPeer = peerConnectionsRef.current.get(remoteKey);
+
+        if (existingPeer && existingPeer.signalingState !== 'closed') {
+            return existingPeer;
+        }
+
+        const peer = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+            ],
+        });
+
+        peerConnectionsRef.current.set(remoteKey, peer);
+
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((track) => {
+                peer.addTrack(track, localStreamRef.current);
             });
-            await peer.setLocalDescription(offer);
+        }
 
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
+        peer.onicecandidate = (event) => {
+            if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({
-                    type: "call_offer",
+                    type: 'call_ice',
                     data: {
                         chat_id: chatData.id,
-                        offer,
-                        callType: type
-                    }
+                        target_user_id: remoteUserId,
+                        candidate: event.candidate,
+                    },
                 }));
             }
+        };
 
+        peer.ontrack = (event) => {
+            const remoteStream = event.streams?.[0] || new MediaStream([event.track]);
+            upsertRemoteStream(remoteUserId, remoteUserName, remoteStream);
+        };
+
+        peer.onconnectionstatechange = () => {
+            if (['failed', 'closed'].includes(peer.connectionState)) {
+                closePeerConnection(remoteUserId);
+                removeRemoteStream(remoteUserId);
+            }
+        };
+
+        flushPendingCandidates(remoteUserId).catch((error) => {
+            console.error('Error flushing pending candidates after peer creation:', error);
+        });
+
+        return peer;
+    }, [chatData?.id, closePeerConnection, flushPendingCandidates, removeRemoteStream, upsertRemoteStream]);
+
+    const cleanupCallResources = useCallback((resetIncomingCall = true) => {
+        peerConnectionsRef.current.forEach((peer, remoteUserId) => {
+            try {
+                peer.onicecandidate = null;
+                peer.ontrack = null;
+                peer.onconnectionstatechange = null;
+                peer.close();
+            } catch (error) {
+                console.error(`Error closing peer ${remoteUserId}:`, error);
+            }
+        });
+
+        peerConnectionsRef.current.clear();
+        pendingCandidatesRef.current.clear();
+        setRemoteStreams([]);
+
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((track) => track.stop());
+            localStreamRef.current = null;
+        }
+
+        if (localVideoRef.current) {
+            localVideoRef.current.srcObject = null;
+        }
+
+        callActiveRef.current = false;
+        callTypeRef.current = null;
+        setCallActive(false);
+        setCallType(null);
+        setCallParticipants([]);
+        setIsMuted(false);
+        setIsVideoEnabled(true);
+        stopTimer();
+
+        if (resetIncomingCall) {
+            setIncomingCall(null);
+        }
+    }, [stopTimer]);
+
+    const createOfferForParticipant = useCallback(async (remoteUserId, remoteUserName, requestedCallType = 'audio') => {
+        if (!remoteUserId || String(remoteUserId) === String(user?.id)) {
+            return;
+        }
+
+        const peer = createPeerConnection(remoteUserId, remoteUserName, requestedCallType);
+        const offer = await peer.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: requestedCallType === 'video',
+        });
+
+        await peer.setLocalDescription(offer);
+
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'call_offer',
+                data: {
+                    chat_id: chatData.id,
+                    target_user_id: remoteUserId,
+                    callType: requestedCallType,
+                    offer,
+                },
+            }));
+        }
+    }, [chatData?.id, createPeerConnection, user?.id]);
+
+    const handleIncomingOffer = useCallback(async (payload) => {
+        if (!payload) {
+            return;
+        }
+
+        const remoteUserId = payload.caller_id || payload.user_id;
+        const remoteUserName = payload.caller_name || payload.user_name;
+        const requestedCallType = payload.callType === 'video' ? 'video' : 'audio';
+
+        await ensureLocalStream(requestedCallType);
+
+        callActiveRef.current = true;
+        callTypeRef.current = requestedCallType;
+        setCallActive(true);
+        setCallType(requestedCallType);
+        upsertCallParticipant({ id: user.id, name: user.name });
+        upsertCallParticipant({ id: remoteUserId, name: remoteUserName });
+
+        const peer = createPeerConnection(remoteUserId, remoteUserName, requestedCallType);
+        await peer.setRemoteDescription(new RTCSessionDescription(payload.offer));
+        await flushPendingCandidates(remoteUserId);
+
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'call_answer',
+                data: {
+                    chat_id: chatData.id,
+                    target_user_id: remoteUserId,
+                    answer,
+                },
+            }));
+        }
+    }, [chatData?.id, createPeerConnection, ensureLocalStream, flushPendingCandidates, upsertCallParticipant, user?.id, user?.name]);
+
+    const handleIncomingAnswer = useCallback(async (payload) => {
+        const remoteUserId = payload?.user_id;
+        const peer = peerConnectionsRef.current.get(String(remoteUserId));
+
+        if (!peer || !payload?.answer) {
+            return;
+        }
+
+        await peer.setRemoteDescription(new RTCSessionDescription(payload.answer));
+        await flushPendingCandidates(remoteUserId);
+    }, [flushPendingCandidates]);
+
+    const handleIncomingIce = useCallback(async (payload) => {
+        const remoteUserId = payload?.user_id;
+        const candidate = payload?.candidate;
+
+        if (!remoteUserId || !candidate) {
+            return;
+        }
+
+        const remoteKey = String(remoteUserId);
+        const peer = peerConnectionsRef.current.get(remoteKey);
+
+        if (!peer || !peer.remoteDescription) {
+            const queue = pendingCandidatesRef.current.get(remoteKey) || [];
+            queue.push(candidate);
+            pendingCandidatesRef.current.set(remoteKey, queue);
+            return;
+        }
+
+        try {
+            await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (error) {
+            console.error('Error adding ICE candidate:', error);
+        }
+    }, []);
+
+    const handleParticipantLeft = useCallback((remoteUserId) => {
+        if (!remoteUserId) {
+            return;
+        }
+
+        removeCallParticipant(remoteUserId);
+        closePeerConnection(remoteUserId);
+        removeRemoteStream(remoteUserId);
+    }, [closePeerConnection, removeCallParticipant, removeRemoteStream]);
+
+    const handleCallFinished = useCallback(() => {
+        cleanupCallResources();
+    }, [cleanupCallResources]);
+
+    const startCall = async (type = 'audio') => {
+        if (!chatData?.id || callActiveRef.current) {
+            return;
+        }
+
+        try {
+            if (wsRef.current?.readyState !== WebSocket.OPEN) {
+                throw new Error('Нет подключения к websocket-серверу');
+            }
+
+            await ensureLocalStream(type);
+
+            callActiveRef.current = true;
+            callTypeRef.current = type;
             setCallActive(true);
             setCallType(type);
-            setCallParticipants([{ id: user.id, name: user.name }]);
+            setIncomingCall(null);
+            syncCallParticipants([{ id: user.id, name: user.name }]);
             startTimer();
-        } catch (err) {
-            console.error('Error starting call:', err);
-            alert('Ошибка при начале звонка: ' + err.message);
+
+            wsRef.current.send(JSON.stringify({
+                type: 'call_start',
+                data: {
+                    chat_id: chatData.id,
+                    callType: type,
+                },
+            }));
+        } catch (error) {
+            console.error('Error starting call:', error);
+            cleanupCallResources();
+            setAlert({
+                content: `Ошибка при начале звонка: ${error.message}`,
+                type: 'err'
+            });
         }
     };
 
     const acceptCall = async () => {
-        if (!incomingCall) return;
+        if (!incomingCall || !chatData?.id) {
+            return;
+        }
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: incomingCall.callType === 'video'
-            });
+            const requestedCallType = incomingCall.callType === 'video' ? 'video' : 'audio';
 
-            localStreamRef.current = stream;
-
-            // Привязываем локальное видео
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-                localVideoRef.current.play().catch(e => console.log('Error playing local video:', e));
+            if (wsRef.current?.readyState !== WebSocket.OPEN) {
+                throw new Error('Нет подключения к websocket-серверу');
             }
 
-            const peer = new RTCPeerConnection({
-                iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
-                    { urls: "stun:stun1.l.google.com:19302" }
-                ]
-            });
-            peerRef.current = peer;
+            await ensureLocalStream(requestedCallType);
 
-            // Добавляем все треки в peer connection
-            stream.getTracks().forEach(track => {
-                peer.addTrack(track, stream);
-            });
-
-            peer.onicecandidate = (event) => {
-                if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(JSON.stringify({
-                        type: "call_ice",
-                        data: {
-                            chat_id: chatData.id,
-                            candidate: event.candidate
-                        }
-                    }));
-                }
-            };
-
-            peer.ontrack = (event) => {
-                console.log('Received remote track', event.track.kind);
-
-                // Важно: создаем новый MediaStream из полученных треков
-                const remoteStream = new MediaStream();
-                event.streams[0].getTracks().forEach(track => {
-                    remoteStream.addTrack(track);
-                });
-
-                // Привязываем удаленное видео/аудио
-                if (incomingCall.callType === 'video') {
-                    if (remoteVideoRef.current) {
-                        remoteVideoRef.current.srcObject = remoteStream;
-                        remoteVideoRef.current.play().catch(e => console.log('Error playing remote video:', e));
-                    }
-                } else {
-                    if (remoteAudioRef.current) {
-                        remoteAudioRef.current.srcObject = remoteStream;
-                    }
-                }
-            };
-
-            // Устанавливаем удаленное описание (offer)
-            await peer.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
-
-            // Создаем и отправляем answer
-            const answer = await peer.createAnswer();
-            await peer.setLocalDescription(answer);
-
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({
-                    type: "call_answer",
-                    data: {
-                        chat_id: chatData.id,
-                        answer
-                    }
-                }));
-            }
-
+            callActiveRef.current = true;
+            callTypeRef.current = requestedCallType;
             setCallActive(true);
-            setCallType(incomingCall.callType);
-            setCallParticipants([
-                { id: incomingCall.caller_id, name: incomingCall.caller_name },
-                { id: user.id, name: user.name }
-            ]);
+            setCallType(requestedCallType);
+            syncCallParticipants(
+                mergeParticipants([
+                    { id: user.id, name: user.name },
+                    ...(incomingCall.participants || []),
+                    { id: incomingCall.caller_id, name: incomingCall.caller_name },
+                ])
+            );
             setIncomingCall(null);
             startTimer();
-        } catch (err) {
-            console.error('Error accepting call:', err);
-            alert('Ошибка при ответе на звонок: ' + err.message);
+
+            wsRef.current.send(JSON.stringify({
+                type: 'call_join',
+                data: {
+                    chat_id: chatData.id,
+                },
+            }));
+        } catch (error) {
+            console.error('Error accepting call:', error);
+            cleanupCallResources();
+            setAlert({
+                content: `Ошибка при ответе на звонок: ${error.message}`,
+                type: 'err'
+            });
         }
     };
 
@@ -1013,93 +1756,48 @@ export default function Chat({ chat_id, chat_url }) {
     };
 
     const endCall = () => {
-        if (peerRef.current) {
-            peerRef.current.close();
-            peerRef.current = null;
-        }
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => track.stop());
-            localStreamRef.current = null;
-        }
-        // Очищаем видео элементы
-        if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = null;
-        }
-        if (localVideoRef.current) {
-            localVideoRef.current.srcObject = null;
-        }
-        if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = null;
-        }
-
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
+        if (wsRef.current?.readyState === WebSocket.OPEN && chatData?.id) {
             wsRef.current.send(JSON.stringify({
-                type: "call_end",
-                data: { chat_id: chatData.id }
+                type: 'call_end',
+                data: {
+                    chat_id: chatData.id,
+                },
             }));
         }
 
-        setCallActive(false);
-        setCallType(null);
-        setCallParticipants([]);
-        stopTimer();
-    };
-
-    const handleCallEnd = () => {
-        setCallActive(false);
-        setCallType(null);
-        setCallParticipants([]);
-        stopTimer();
-
-        if (peerRef.current) {
-            peerRef.current.close();
-            peerRef.current = null;
-        }
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => track.stop());
-            localStreamRef.current = null;
-        }
-        if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = null;
-        }
-        if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = null;
-        }
+        cleanupCallResources();
     };
 
     const toggleMute = () => {
-        if (localStreamRef.current) {
-            const audioTracks = localStreamRef.current.getAudioTracks();
-            audioTracks.forEach(track => { track.enabled = isMuted; });
-            setIsMuted(!isMuted);
+        if (!localStreamRef.current) {
+            return;
         }
+
+        const nextMuted = !isMuted;
+        localStreamRef.current.getAudioTracks().forEach((track) => {
+            track.enabled = !nextMuted;
+        });
+        setIsMuted(nextMuted);
     };
 
     const toggleVideo = () => {
-        if (localStreamRef.current && callType === 'video') {
-            const videoTracks = localStreamRef.current.getVideoTracks();
-            videoTracks.forEach(track => { track.enabled = !isVideoEnabled; });
-            setIsVideoEnabled(!isVideoEnabled);
+        if (!localStreamRef.current || callTypeRef.current !== 'video') {
+            return;
         }
+
+        const nextVideoEnabled = !isVideoEnabled;
+        localStreamRef.current.getVideoTracks().forEach((track) => {
+            track.enabled = nextVideoEnabled;
+        });
+        setIsVideoEnabled(nextVideoEnabled);
     };
 
-    const toggleCallMinimize = () => {
-        setIsCallMinimized(!isCallMinimized);
-    };
 
-
-    // Очистка при размонтировании
     useEffect(() => {
         return () => {
-            // Очищаем видео при размонтировании
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = null;
-            }
-            if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = null;
-            }
+            cleanupCallResources(false);
         };
-    }, []);
+    }, [cleanupCallResources]);
 
     const [alert, setAlert] = useState()
 
@@ -1303,7 +2001,7 @@ export default function Chat({ chat_id, chat_url }) {
 
                     {/* Попап входящего звонка */}
                     {incomingCall && (
-                        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl p-6 z-50 border-2 border-main min-w-[300px]">
+                        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl p-6 z-50 border-2 border-main min-w-[320px]">
                             <div className="text-center">
                                 <div className="w-20 h-20 mx-auto mb-4 bg-main/20 rounded-full flex items-center justify-center">
                                     <span className="text-4xl">
@@ -1313,7 +2011,10 @@ export default function Chat({ chat_id, chat_url }) {
                                 <p className="text-xl font-bold mb-2">
                                     Входящий {incomingCall.callType === 'video' ? 'видео' : 'аудио'} звонок
                                 </p>
-                                <p className="text-gray-600 mb-6">от {incomingCall.caller_name}</p>
+                                <p className="text-gray-600 mb-2">от {incomingCall.caller_name}</p>
+                                <p className="text-sm text-gray-500 mb-6">
+                                    Участников уже в звонке: {incomingCall.participants?.length || 1}
+                                </p>
                                 <div className="flex gap-4 justify-center">
                                     <button
                                         onClick={acceptCall}
@@ -1332,20 +2033,71 @@ export default function Chat({ chat_id, chat_url }) {
                         </div>
                     )}
 
-                    {/* Попап активного звонка */}
-                    {callActive && callType === 'video' && (
-                        <div className="fixed top-[73px] left-0 right-0 z-50 bg-black p-4" style={{ height: '400px' }}>
-                            <div className="relative h-full">
-                                {/* Видео собеседника на весь экран */}
-                                <video
-                                    ref={remoteVideoRef}
-                                    autoPlay
-                                    playsInline
-                                    className="w-full h-full bg-gray-800 rounded-lg object-cover"
-                                />
+                    {callActive && callType === 'audio' && (
+                        <div className="fixed top-[73px] left-0 right-0 z-40 bg-white border-b shadow-sm p-4">
+                            <div className="max-w-5xl mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="font-semibold text-main">Групповой аудиозвонок</p>
+                                    <p className="text-sm text-gray-600">
+                                        {formatTime(callTime)} · Участники: {callParticipants.map(participant => participant.name).join(', ') || 'только вы'}
+                                    </p>
+                                </div>
 
-                                {/* Свое видео в углу */}
-                                <div className="absolute bottom-4 right-4 w-48 h-36 bg-gray-800 rounded-lg border-2 border-white overflow-hidden shadow-lg">
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={toggleMute}
+                                        className={`px-4 py-2 rounded-full ${isMuted ? 'bg-red-500 text-white' : 'bg-gray-100'} hover:opacity-80 transition-colors`}
+                                    >
+                                        {isMuted ? '🔇 Микрофон выкл.' : '🎤 Микрофон'}
+                                    </button>
+                                    <button
+                                        onClick={endCall}
+                                        className="px-4 py-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                    >
+                                        Завершить
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Попап активного видеозвонка */}
+                    {callActive && callType === 'video' && (
+                        <div className="fixed top-[73px] left-0 right-0 z-50 bg-black p-4" style={{ height: '420px' }}>
+                            <div className="relative h-full flex flex-col gap-4">
+                                <div className="flex items-center justify-between text-white">
+                                    <div>
+                                        <p className="font-semibold">Групповой видеозвонок</p>
+                                        <p className="text-sm text-gray-300">
+                                            {formatTime(callTime)} · Участники: {callParticipants.map(participant => participant.name).join(', ') || 'только вы'}
+                                        </p>
+                                    </div>
+                                    <div className="text-sm text-gray-300">
+                                        {callParticipants.length} участ.
+                                    </div>
+                                </div>
+
+                                <div className={`grid flex-1 gap-4 ${remoteStreams.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                    {remoteStreams.length > 0 ? (
+                                        remoteStreams.map((remote) => (
+                                            <div key={`remote-video-${remote.userId}`} className="relative bg-gray-800 rounded-lg overflow-hidden">
+                                                <StreamVideo
+                                                    stream={remote.stream}
+                                                    className="w-full h-full bg-gray-800 rounded-lg object-cover"
+                                                />
+                                                <div className="absolute left-3 bottom-3 bg-black/60 text-white text-sm px-2 py-1 rounded-full">
+                                                    {remote.userName}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="flex items-center justify-center bg-gray-900 rounded-lg text-gray-300">
+                                            Ожидание подключения участников...
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="absolute bottom-20 right-4 w-48 h-36 bg-gray-800 rounded-lg border-2 border-white overflow-hidden shadow-lg">
                                     <video
                                         ref={localVideoRef}
                                         autoPlay
@@ -1355,7 +2107,6 @@ export default function Chat({ chat_id, chat_url }) {
                                     />
                                 </div>
 
-                                {/* Элементы управления видео */}
                                 <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-4 bg-black/50 p-2 rounded-full">
                                     <button
                                         onClick={toggleMute}
@@ -1382,8 +2133,9 @@ export default function Chat({ chat_id, chat_url }) {
                         </div>
                     )}
 
-
-                    <audio ref={remoteAudioRef} autoPlay />
+                    {callType === 'audio' && remoteStreams.map((remote) => (
+                        <StreamAudio key={`remote-audio-${remote.userId}`} stream={remote.stream} />
+                    ))}
 
                     {/* Поискавая панель */}
                     {showSearch && (
@@ -1448,7 +2200,7 @@ export default function Chat({ chat_id, chat_url }) {
                     )}
 
                     {/* Messages */}
-                    <div className={`flex-1 overflow-y-auto p-4 messages-container ${callActive && callType === 'video' ? 'mt-[calc(73px+16rem)]' : 'mt-[73px]'} mb-24`}>
+                    <div className={`flex-1 overflow-y-auto p-4 messages-container ${callActive && callType === 'video' ? 'mt-[calc(73px+17rem)]' : callActive && callType === 'audio' ? 'mt-[145px]' : 'mt-[73px]'} mb-24`}>
                         {chatData.commentable !== 'true' ? (
                             'Комментарии отключены'
                         ) : messages.length === 0 ? (
@@ -1477,7 +2229,7 @@ export default function Chat({ chat_id, chat_url }) {
                                                 ? 'bg-sec'
                                                 : 'bg-main/30'
                                                 } rounded-lg p-3 ${message.is_pinned == 'true' ? 'border-2 border-yellow-400' : ''
-                                                } ${message.isSending ? 'opacity-70' : ''}`}
+                                                } ${message.delivery_status === 'sending' ? 'opacity-70' : ''}`}
                                         >
                                             <div className="w-full">
                                                 {message.author_id !== user?.id && (
@@ -1592,10 +2344,51 @@ export default function Chat({ chat_id, chat_url }) {
                                                     </div>
                                                 </ContextMenu>
 
-                                                <div className="flex justify-between items-center mt-1 text-xs text-gray-500">
-                                                    <span>{message.created_at}</span>
-                                                    {message.is_pinned == 'true' && <span className="ml-2">📌</span>}
-                                                    {message.isSending && <span className="ml-2">⏳</span>}
+                                                <div className="flex justify-between items-center mt-1 text-xs text-gray-500 gap-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{message.created_at}</span>
+                                                        {message.is_pinned == 'true' && <span className="ml-1">📌</span>}
+                                                    </div>
+
+                                                    {message.author_id === user?.id && (
+                                                        <div className="flex items-center gap-2">
+                                                            {message.delivery_status === 'sending' && (
+                                                                <span title="Отправляется">🕓</span>
+                                                            )}
+
+                                                            {message.delivery_status === 'sent' && (
+                                                                <span title="Отправлено">✓</span>
+                                                            )}
+
+                                                            {message.delivery_status === 'delivered' && (
+                                                                <span title="Доставлено">✓✓</span>
+                                                            )}
+
+                                                            {message.delivery_status === 'read' && (
+                                                                <span
+                                                                    className="text-sky-500"
+                                                                    title={
+                                                                        message.read_by_user_ids?.length > 0
+                                                                            ? `Прочитано ${message.read_by_user_ids.length} участниками`
+                                                                            : 'Прочитано'
+                                                                    }
+                                                                >
+                                                                    ✓✓
+                                                                </span>
+                                                            )}
+
+                                                            {message.delivery_status === 'error' && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => retryFailedMessage(message)}
+                                                                    className="text-red-600 hover:underline"
+                                                                    title={message.error_message || 'Повторить отправку'}
+                                                                >
+                                                                    Ошибка
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1730,7 +2523,6 @@ export default function Chat({ chat_id, chat_url }) {
                             </form>
                         </div>
 
-                        <audio ref={remoteAudioRef} autoPlay />
                     </div>
                 </>
             ) : (

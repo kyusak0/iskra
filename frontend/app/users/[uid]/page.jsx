@@ -7,11 +7,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Popup from "../../../components/popup/Popup";
 
-const BASE_URL = 'http://localhost:8001/storage/';
+const BASE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8001/storage/';
 
 export default function ProfilePage() {
     const params = useParams();
-    console.log(params);
 
     const [userData, setUserData] = useState(null);
     const router = useRouter()
@@ -26,6 +25,14 @@ export default function ProfilePage() {
     const [disableError, setDisableError] = useState('');
     const [activeTab, setActiveTab] = useState('posts');
     const [isCreatingChat, setIsCreatingChat] = useState(false);
+    const [relationship, setRelationship] = useState(null);
+    const [relationLoading, setRelationLoading] = useState(false);
+    const [friendStats, setFriendStats] = useState({
+        friends: 0,
+        incoming_requests: 0,
+        outgoing_requests: 0,
+        blocked_users: 0,
+    });
 
     const { user, get, post, loading } = useAuth()
 
@@ -36,7 +43,6 @@ export default function ProfilePage() {
     const getUserInfo = async (userId) => {
         try {
             const res = await get('/user-info/' + userId);
-            console.log(res)
             if (res.success) {
                 setUserData({
                     id: res.data.id,
@@ -45,7 +51,8 @@ export default function ProfilePage() {
                     posts: res.data.posts,
                     google2fa_enabled: !!res.data.google2fa_enabled,
                     videos: res.data.videos || [],
-                    reposts: res.data.reposts || []
+                    reposts: res.data.reposts || [],
+                    friends_count: res.data.friends_count || 0,
                 });
             } else {
                 notFound()
@@ -54,9 +61,66 @@ export default function ProfilePage() {
 
 
         } catch (error) {
-            console.log(error.message)
         }
     }
+
+
+    const loadFriendRelation = async (userId) => {
+        if (!user || String(user.id) === String(userId)) {
+            setRelationship(null);
+            return;
+        }
+
+        const res = await get(`/friends/relation/${userId}`, { silent: true });
+        if (res?.success) {
+            setRelationship(res.data);
+        }
+    };
+
+    const loadFriendStats = async () => {
+        if (!user) return;
+
+        const res = await get('/friends/stats', { silent: true });
+        if (res?.success && res.data) {
+            setFriendStats(res.data);
+        }
+    };
+
+    useEffect(() => {
+        if (!user) {
+            setRelationship(null);
+            return;
+        }
+
+        if (String(user.id) === String(params.uid)) {
+            loadFriendStats();
+            setRelationship(null);
+        } else {
+            loadFriendRelation(params.uid);
+        }
+    }, [user, params.uid]);
+
+    const handleFriendAction = async (endpoint) => {
+        if (!userData?.id) return;
+
+        setRelationLoading(true);
+        try {
+            const res = await post(endpoint, { user_id: userData.id });
+
+            if (res?.success && res?.data) {
+                setRelationship(res.data);
+            }
+
+            await getUserInfo(params.uid);
+            if (user && String(user.id) === String(params.uid)) {
+                await loadFriendStats();
+            } else if (user) {
+                await loadFriendRelation(params.uid);
+            }
+        } finally {
+            setRelationLoading(false);
+        }
+    };
 
     const handleCreatePersonalChat = async () => {
         if (!user || !userData) return;
@@ -65,7 +129,6 @@ export default function ProfilePage() {
         try {
             // Отправляем запрос на создание/получение чата
             const res = await post('/get-or-create-personal-chat', {
-                user_id: user.id,
                 other_user_id: userData.id,
             });
 
@@ -74,11 +137,10 @@ export default function ProfilePage() {
                 router.push(`/chats/${res.data.id}`);
 
                 // Можно показать уведомление
-                if (res.data.isNew) {
+                if (res.isNew) {
                     alert('Новый чат создан');
                 } else {
                     // Просто переходим в существующий чат без уведомления
-                    console.log('Переход в существующий чат');
                 }
             } else {
                 console.error('Failed to get/create chat');
@@ -139,27 +201,24 @@ export default function ProfilePage() {
         try {
             let loadFile = null
             if (file && file.type.includes('image')) {
-                const formData = {
-                    file: file,
-                    author_id: user.id
-                }
+                const formData = new FormData();
+                formData.append('file', file);
                 loadFile = await post('/load-file', formData);
 
-                setUserData(userData, {
-                    avatar: loadFile.data.name,
-                });
+                if (loadFile?.data?.name) {
+                    const editUser = await post('/set-avatar', {
+                        avatar: loadFile.data.name
+                    });
 
-                const data = {
-                    user_id: user.id,
-                    avatar: loadFile.data.name
+                    if (editUser.success) {
+                        setUserData(prev => ({
+                            ...prev,
+                            avatar: loadFile.data.name,
+                        }));
+                    }
                 }
-
-                const editUser = await post('/set-avatar', data)
-
-                console.log(editUser)
             }
         } catch (error) {
-            console.log(error.message)
         }
 
     }
@@ -198,7 +257,6 @@ export default function ProfilePage() {
         const content = getFilteredContent();
 
         if (activeTab === 'reposts') {
-            console.log(content)
             return content.map((post, index) => (
                 <div className="col-span-1 max-lg:col-span-3 border-2 border-main p-5 flex flex-col justify-center" key={post.id}>
                     <div className="flex gap-2 pb-2 items-center">
@@ -344,15 +402,138 @@ export default function ProfilePage() {
     // Проверяем, является ли просматриваемый профиль профилем текущего пользователя
     const isOwnProfile = user && String(user.id) === String(params.uid);
 
+    const relationState = relationship || {
+        relation: 'none',
+        can_message: true,
+        can_send_request: true,
+        can_accept_request: false,
+        can_decline_request: false,
+        can_cancel_request: false,
+        can_remove_friend: false,
+        can_block: true,
+        can_unblock: false,
+    };
+
+    const relationTextMap = {
+        self: 'Это ваш профиль',
+        none: 'Вы пока не в друзьях',
+        friends: 'Вы уже друзья',
+        outgoing_request: 'Заявка отправлена',
+        incoming_request: 'У вас входящая заявка',
+        blocked_by_me: 'Пользователь заблокирован вами',
+        blocked_me: 'Пользователь заблокировал вас',
+    };
+
+    const relationText = relationTextMap[relationState.relation] || 'Вы пока не в друзьях';
+
+    const renderProfileActions = () => {
+        if (isOwnProfile || !user) {
+            return null;
+        }
+
+        return (
+            <div className="col-span-2 flex flex-col gap-3 items-center">
+                {relationState.can_message && (
+                    <button
+                        onClick={handleCreatePersonalChat}
+                        disabled={isCreatingChat || relationLoading}
+                        className="px-6 py-2 bg-main text-white font-bold rounded-md hover:bg-main-dark transition-colors disabled:bg-gray-300 flex items-center gap-2"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        {isCreatingChat ? 'Создание чата...' : 'Написать сообщение'}
+                    </button>
+                )}
+
+                <div className="flex flex-wrap justify-center gap-3">
+                    {relationState.can_send_request && (
+                        <button
+                            onClick={() => handleFriendAction('/friends/request')}
+                            disabled={relationLoading}
+                            className="px-4 py-2 bg-main text-white font-bold rounded-md hover:bg-main-dark transition-colors disabled:bg-gray-300"
+                        >
+                            Добавить в друзья
+                        </button>
+                    )}
+
+                    {relationState.can_accept_request && (
+                        <button
+                            onClick={() => handleFriendAction('/friends/accept')}
+                            disabled={relationLoading}
+                            className="px-4 py-2 bg-green-600 text-white font-bold rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-300"
+                        >
+                            Принять заявку
+                        </button>
+                    )}
+
+                    {relationState.can_decline_request && (
+                        <button
+                            onClick={() => handleFriendAction('/friends/decline')}
+                            disabled={relationLoading}
+                            className="px-4 py-2 bg-gray-600 text-white font-bold rounded-md hover:bg-gray-700 transition-colors disabled:bg-gray-300"
+                        >
+                            Отклонить
+                        </button>
+                    )}
+
+                    {relationState.can_cancel_request && (
+                        <button
+                            onClick={() => handleFriendAction('/friends/cancel')}
+                            disabled={relationLoading}
+                            className="px-4 py-2 bg-gray-600 text-white font-bold rounded-md hover:bg-gray-700 transition-colors disabled:bg-gray-300"
+                        >
+                            Отозвать заявку
+                        </button>
+                    )}
+
+                    {relationState.can_remove_friend && (
+                        <button
+                            onClick={() => handleFriendAction('/friends/remove')}
+                            disabled={relationLoading}
+                            className="px-4 py-2 bg-amber-600 text-white font-bold rounded-md hover:bg-amber-700 transition-colors disabled:bg-gray-300"
+                        >
+                            Удалить из друзей
+                        </button>
+                    )}
+
+                    {relationState.can_block && (
+                        <button
+                            onClick={() => handleFriendAction('/friends/block')}
+                            disabled={relationLoading}
+                            className="px-4 py-2 bg-red-600 text-white font-bold rounded-md hover:bg-red-700 transition-colors disabled:bg-gray-300"
+                        >
+                            Заблокировать
+                        </button>
+                    )}
+
+                    {relationState.can_unblock && (
+                        <button
+                            onClick={() => handleFriendAction('/friends/unblock')}
+                            disabled={relationLoading}
+                            className="px-4 py-2 bg-main text-white font-bold rounded-md hover:bg-main-dark transition-colors disabled:bg-gray-300"
+                        >
+                            Разблокировать
+                        </button>
+                    )}
+                </div>
+
+                <p className="text-sm text-gray-600 text-center">{relationText}</p>
+
+                <button
+                    type="button"
+                    onClick={() => router.push('/friends')}
+                    className="underline text-main hover:text-main-dark"
+                >
+                    Открыть раздел друзей
+                </button>
+            </div>
+        );
+    };
+
     return (
         <MainLayout>
             <div className="flex pb-2 flex-col items-center gap-5 border-b-2 border-main">
-                <button
-                    onClick={() => { console.log(userData) }}
-                    className="hidden"
-                >
-                    test
-                </button>
                 <Popup
                     openTrigger={userData?.avatar ? (
                         <img src={`${BASE_URL + userData.avatar}`} alt="" className="w-20 h-20 rounded-full bg-main cursor-pointer hover:opacity-80 transition-opacity" />
@@ -480,27 +661,13 @@ export default function ProfilePage() {
                             )}
                         </div>
                     ) : (
-                        // Кнопка "Написать сообщение" для чужих профилей
-                        user && (
-                            <div className="col-span-2 flex justify-center">
-                                <button
-                                    onClick={handleCreatePersonalChat}
-                                    disabled={isCreatingChat}
-                                    className="px-6 py-2 bg-main text-white font-bold rounded-md hover:bg-main-dark transition-colors disabled:bg-gray-300 flex items-center gap-2"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                    </svg>
-                                    {isCreatingChat ? 'Создание чата...' : 'Написать сообщение'}
-                                </button>
-                            </div>
-                        )
+                        renderProfileActions()
                     )}
-                    <div className="col-span-1">подписчиков</div>
-                    <div className="col-span-1">подписки</div>
+                    <div className="col-span-1">друзей</div>
+                    <div className="col-span-1">{isOwnProfile ? 'входящих заявок' : 'статус'}</div>
 
-                    <div className="col-span-1 font-bold">0</div>
-                    <div className="col-span-1 font-bold">0</div>
+                    <div className="col-span-1 font-bold">{isOwnProfile ? friendStats.friends : (userData?.friends_count || 0)}</div>
+                    <div className="col-span-1 font-bold text-sm">{isOwnProfile ? friendStats.incoming_requests : relationText}</div>
 
                 </div>
             </div>

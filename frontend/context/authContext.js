@@ -334,24 +334,36 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const post = async (link, data) => {
-        try {
-            const response = await axios.post(link, data, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
+    const post = async (link, data, options = {}) => {
+        const { silent = false } = options;
 
-            if (response.data.success) {
-                setAlert({
-                    content: 'Операция выполнена успешно',
-                    type: ''
-                });
-            } else {
-                setAlert({
-                    content: response.data.message || 'Операция не удалась'+link,
-                    type: 'err'
-                });
+        try {
+            const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+
+            const response = await axios.post(
+                link,
+                data,
+                isFormData
+                    ? {}
+                    : {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }
+            );
+
+            if (!silent) {
+                if (response.data.success) {
+                    setAlert({
+                        content: response.data.message || 'Операция выполнена успешно',
+                        type: ''
+                    });
+                } else {
+                    setAlert({
+                        content: response.data.message || `Операция не удалась: ${link}`,
+                        type: 'err'
+                    });
+                }
             }
 
             return response.data;
@@ -360,10 +372,12 @@ export const AuthProvider = ({ children }) => {
                 error.response?.data?.message ||
                 `Ошибка при выполнении запроса к ${link}`;
 
-            setAlert({
-                content: errorMessage,
-                type: 'err'
-            });
+            if (!silent) {
+                setAlert({
+                    content: errorMessage,
+                    type: 'err'
+                });
+            }
 
             return {
                 success: false,
@@ -372,7 +386,9 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const get = async (link) => {
+    const get = async (link, options = {}) => {
+        const { silent = false } = options;
+
         try {
             const response = await axios.get(link);
             return response.data;
@@ -381,10 +397,12 @@ export const AuthProvider = ({ children }) => {
                 error.response?.data?.message ||
                 `Ошибка при выполнении запроса к ${link}`;
 
-            setAlert({
-                content: errorMessage,
-                type: 'err'
-            });
+            if (!silent) {
+                setAlert({
+                    content: errorMessage,
+                    type: 'err'
+                });
+            }
 
             return {
                 success: false,

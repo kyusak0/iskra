@@ -57,6 +57,33 @@ class User extends Authenticatable
     public function reposts(){
         return $this->hasMany(Repost::class);
     }
+    public function sentFriendRequests()
+    {
+        return $this->hasMany(FriendRequest::class, 'sender_id');
+    }
+
+    public function receivedFriendRequests()
+    {
+        return $this->hasMany(FriendRequest::class, 'receiver_id');
+    }
+
+    public function blockedUsers()
+    {
+        return $this->belongsToMany(User::class, 'user_blocks', 'blocker_id', 'blocked_id');
+    }
+
+    public function blockedByUsers()
+    {
+        return $this->belongsToMany(User::class, 'user_blocks', 'blocked_id', 'blocker_id');
+    }
+
+    public function readMessages()
+    {
+        return $this->belongsToMany(Message::class, 'message_reads', 'user_id', 'message_id')
+            ->withPivot('read_at')
+            ->withTimestamps();
+    }
+
 
     /**
      * The attributes that should be hidden for serialization.

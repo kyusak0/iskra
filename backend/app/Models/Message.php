@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Message extends Model
 {
     protected $fillable = [
-        'content','source_id','author_id','answer_id','type','messageable','is_pinned'
+        'content', 'source_id', 'author_id', 'answer_id', 'type', 'messageable', 'is_pinned'
     ];
 
     public function source(){
@@ -24,6 +24,19 @@ class Message extends Model
 
     public function answer(){
         return $this->hasMany(Message::class, 'answer_id');
+    }
+
+
+    public function readers()
+    {
+        return $this->belongsToMany(User::class, 'message_reads', 'message_id', 'user_id')
+            ->withPivot('read_at')
+            ->withTimestamps();
+    }
+
+    public function messageReads()
+    {
+        return $this->hasMany(MessageRead::class);
     }
 
     public function messageable()

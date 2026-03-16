@@ -6,7 +6,7 @@ import { useAuth } from "../../context/authContext";
 import MainLayout from "../../layouts/MainLayout";
 import NoMedia from "../../public/no-media.png"
 
-const BASE_URL = 'http://localhost:8001/storage/';
+const BASE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8001/storage/';
 
 export default function Videos() {
 
@@ -125,10 +125,8 @@ export default function Videos() {
             const seconds = Math.floor(durationInSeconds % 60);
             const formattedDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
-            const videoFormData = {
-                file: video,
-                author_id: user.id
-            };
+            const videoFormData = new FormData();
+            videoFormData.append('file', video);
             const loadVideo = await post('/load-file', videoFormData);
             video_id = loadVideo.data.id;
 
@@ -138,10 +136,8 @@ export default function Videos() {
                     return;
                 }
 
-                const coverFormData = {
-                    file: file,
-                    author_id: user.id
-                };
+                const coverFormData = new FormData();
+                coverFormData.append('file', file);
                 const loadFile = await post('/load-file', coverFormData);
                 cover_id = loadFile.data.id;
             } else {
@@ -150,10 +146,8 @@ export default function Videos() {
 
                     const frameFile = await extractFrameFromVideo(video);
 
-                    const coverFormData = {
-                        file: frameFile,
-                        author_id: user.id
-                    };
+                    const coverFormData = new FormData();
+                    coverFormData.append('file', frameFile);
                     const loadFile = await post('/load-file', coverFormData);
                     cover_id = loadFile.data.id;
 

@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import ContextMenu from "../../../components/contextMenu/ContextMenu";
 import Popup from "../../../components/popup/Popup";
 
-const BASE_URL = 'http://localhost:8001/storage/';
+const BASE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8001/storage/';
 
 export default function ProfilePage() {
     const params = useParams();
@@ -43,7 +43,7 @@ export default function ProfilePage() {
                     id: res.data.id,
                     title: res.data.title,
                     desc: res.data.desc,
-                    source: res.data.source?.name,
+                    source: res.data.source,
                     author: res.data.user,
                     messages: res.data.messages || [],
                     commentable: res.data.commentable || 'false',
@@ -70,10 +70,8 @@ export default function ProfilePage() {
         try {
             let loadFile = null
             if (file) {
-                const formData = {
-                    file: file,
-                    author_id: user.id
-                }
+                const formData = new FormData();
+                formData.append('file', file);
 
                 loadFile = await post('/load-file', formData);
             }
@@ -167,11 +165,13 @@ export default function ProfilePage() {
     // Функция удаления комментария
     const deleteMessage = async (message) => {
         try {
-            const response = await post('/delete-message', { id: message.id });
+            const response = await post('/delete-message', { message_id: message.id });
 
             if (response.success) {
-                // Обновляем список комментариев
-                setComments(prev => prev.filter(c => c.id !== message.id));
+                setPostData(prev => ({
+                    ...prev,
+                    messages: (prev?.messages || []).filter(c => c.id !== message.id),
+                }));
             }
         } catch (error) {
             console.error('Ошибка при удалении комментария:', error);
@@ -182,13 +182,19 @@ export default function ProfilePage() {
     // Функция закрепления комментария
     const pinMessage = async (message) => {
         try {
+            const newPinnedState = message.is_pinned == 'true' ? 'false' : 'true';
             const response = await post('/pin-message', {
-                id: message.id,
-                post_id: postData?.id
+                message_id: message.id,
+                is_pinned: newPinnedState
             });
 
             if (response.success) {
-                alert('Комментарий закреплен');
+                setPostData(prev => ({
+                    ...prev,
+                    messages: (prev?.messages || []).map(item =>
+                        item.id === message.id ? { ...item, is_pinned: newPinnedState } : item
+                    ),
+                }));
             }
         } catch (error) {
             console.error('Ошибка при закреплении комментария:', error);
@@ -199,7 +205,6 @@ export default function ProfilePage() {
     const repost = async () => {
         const data = {
             post_id: postData.id,
-            user_id: user.id,
             link: `/posts/${postData.url}`
         }
 

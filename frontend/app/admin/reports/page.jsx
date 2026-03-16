@@ -15,12 +15,14 @@ export default function AdminPanel() {
     const [reports, setreports] = useState([]);
 
 
-    const deleteReport = async (e, report) => {
+    const deleteReport = async (e, reportId) => {
         e.preventDefault()
-        const res = await get(`/delete-report/${report.id}`)
-        console.log(res)
+        const res = await get(`/delete-report/${reportId}`)
 
-        setAlert({ content: 'Тег успешно удален', type: '' })
+        if (res.success) {
+            setreports(prev => prev.filter(report => report.id !== reportId));
+            setAlert({ content: 'Жалоба успешно удалена', type: '' })
+        }
     }
 
     const getReports = async () => {
@@ -72,7 +74,7 @@ export default function AdminPanel() {
                             </button>
                         }>
                             <form action="" onSubmit={(e) => deleteReport(e, report.id)} className="flex flex-col gap-5 h-60 justify-center items-center">
-                                <p className="">Вы уверены что хотите <span className="text-main uppercase">Удалить</span> тег <span className="text-main uppercase">{report.name}</span></p>
+                                <p className="">Вы уверены что хотите <span className="text-main uppercase">Удалить</span> жалобу <span className="text-main uppercase">#{report.id}</span></p>
                                 <button type="submit" className="w-max btn rounded-md">
                                     Удалить
                                 </button>
