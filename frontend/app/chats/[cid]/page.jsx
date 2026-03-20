@@ -11,7 +11,7 @@ import Alert from '../../../components/alert/Alert';
 const BASE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8001/storage/';
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:5000';
 
-// Дебаунс функция для поиска
+// функция для поиска
 const debounce = (func, wait) => {
     let timeout;
     return function executedFunction(...args) {
@@ -1845,7 +1845,7 @@ export default function Chat({ chat_id, chat_url }) {
                                         </div>
                                     )}
                                     <div>
-                                        <h2 className="font-bold text-center truncate">{chatData.displayTitle || 'Чат'}</h2>
+                                        <h2 className="font-bold truncate">{chatData.displayTitle || 'Чат'}</h2>
                                         {!isPersonalChat ? (
                                             <div className="flex items-center gap-2 text-sm">
                                                 <span className="text-gray-500">{chatData.members?.length || 0} участников</span>
@@ -1881,9 +1881,61 @@ export default function Chat({ chat_id, chat_url }) {
                             }
                         >
                             <div className="p-4">
+
+                                <div className="flex flex-col items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors">
+                                    {chatData.displayAvatar ? (
+                                        <img
+                                            src={`${BASE_URL}${chatData.displayAvatar}`}
+                                            alt=""
+                                            className="w-20 h-20 rounded-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-20 h-20 rounded-full bg-main text-2xl text-white flex items-center justify-center font-bold">
+                                            {chatData.displayTitle?.[0]?.toUpperCase() || '?'}
+                                        </div>
+                                    )}
+                                    <div>
+                                        <h2 className="font-bold text-center truncate">{chatData.displayTitle || 'Чат'}</h2>
+                                        {!isPersonalChat ? (
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <span className="text-gray-500">{chatData.members?.length || 0} участников</span>
+                                                {isConnected ? (
+                                                    <span className="text-green-500 flex items-center gap-1">
+                                                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                                        {onlineUsers.length} онлайн
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400 flex items-center gap-1">
+                                                        <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                                                        офлайн
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="text-xs text-gray-500">
+                                                {isConnected ? (
+                                                    <span className="text-green-500">в сети</span>
+                                                ) : (
+                                                    <span className="text-gray-400">не в сети</span>
+                                                )}
+                                            </div>
+                                        )}
+                                        {/* Индикатор печатания */}
+                                        {typingUsers.length > 0 && (
+                                            <div className="text-xs text-gray-500 mt-1">
+                                                {typingUsers.join(', ')} {typingUsers.length === 1 ? 'печатает' : 'печатают'}...
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {isPersonalChat ? 'Информация о пользователе' : <div className="">
+                                    <p className='border-b-2 border-main pb-2 mb-4'>Описание: {chatData.desc}</p>
+                                </div>}
                                 <h3 className="text-xl font-bold mb-4">
                                     {isPersonalChat ? 'Информация о пользователе' : 'Участники чата'}
                                 </h3>
+
+
                                 <div className="space-y-2 max-h-96 overflow-y-auto">
                                     {isPersonalChat ? (
                                         // Для personal чата показываем только второго участника
@@ -2020,13 +2072,13 @@ export default function Chat({ chat_id, chat_url }) {
                                         onClick={acceptCall}
                                         className="px-6 py-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors flex items-center gap-2"
                                     >
-                                        <span>✅</span> Ответить
+                                        Ответить
                                     </button>
                                     <button
                                         onClick={rejectCall}
                                         className="px-6 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors flex items-center gap-2"
                                     >
-                                        <span>❌</span> Отклонить
+                                        Отклонить
                                     </button>
                                 </div>
                             </div>
@@ -2200,7 +2252,7 @@ export default function Chat({ chat_id, chat_url }) {
                     )}
 
                     {/* Messages */}
-                    <div className={`flex-1 overflow-y-auto p-4 messages-container ${callActive && callType === 'video' ? 'mt-[calc(73px+17rem)]' : callActive && callType === 'audio' ? 'mt-[145px]' : 'mt-[73px]'} mb-24`}>
+                    <div className={`flex-1 overflow-y-auto p-4 messages-container ${callActive && callType === 'video' ? 'mt-[calc(73px+17rem)]' : callActive && callType === 'audio' ? 'mt-[145px]' : 'mt-30'} mb-24`}>
                         {chatData.commentable !== 'true' ? (
                             'Комментарии отключены'
                         ) : messages.length === 0 ? (
@@ -2208,7 +2260,7 @@ export default function Chat({ chat_id, chat_url }) {
                                 className="text-gray-500 text-center p-4 cursor-pointer hover:text-gray-700"
                                 onClick={() => setContent('Здравствуйте')}
                             >
-                                Чат пуст! <br /> Поздороваться
+                                Чат пуст! <br /> <span className="text-main">Поздороваться</span>
                             </p>
                         ) : (
                             messages.map(message => (
@@ -2306,6 +2358,7 @@ export default function Chat({ chat_id, chat_url }) {
                                                             onClick={() => {
                                                                 setCloseContext(true);
                                                                 setAnswer({ id: message.id, content: message.content });
+
                                                             }}
                                                         >
                                                             Ответить
@@ -2399,7 +2452,6 @@ export default function Chat({ chat_id, chat_url }) {
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Input area */}
                     <div className="fixed bottom-0 w-full bg-bg border-t">
                         {showForwardSelector && (
                             <div className="p-4 border-t bg-gray-50">
@@ -2471,15 +2523,6 @@ export default function Chat({ chat_id, chat_url }) {
 
                         <div className="p-4">
                             <form onSubmit={handleSend} className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={content}
-                                    onChange={handleInputChange}
-                                    className="flex-1 p-2 border rounded-md focus:outline-none focus:border-main"
-                                    placeholder="Введите сообщение..."
-                                    disabled={isRecording}
-                                />
-
                                 {!recording && (
                                     <>
                                         <input
@@ -2497,10 +2540,21 @@ export default function Chat({ chat_id, chat_url }) {
                                             htmlFor="file-input"
                                             className="p-2 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200"
                                         >
-                                            📎
+
+                                            <img src="/file.svg" className='w-10 h-10 m-auto' alt="" />
+
                                         </label>
                                     </>
                                 )}
+
+                                <input
+                                    type="text"
+                                    value={content}
+                                    onChange={handleInputChange}
+                                    className="flex-1 p-2 border rounded-md focus:outline-none focus:border-main"
+                                    placeholder="Введите сообщение..."
+                                    disabled={isRecording}
+                                />
 
                                 <button
                                     type="button"
@@ -2510,15 +2564,19 @@ export default function Chat({ chat_id, chat_url }) {
                                         : 'bg-gray-100 hover:bg-gray-200'
                                         }`}
                                 >
-                                    {isRecording ? '⏹️' : '🎤'}
+                                    {isRecording ? (
+                                        <img src="/micro-record.svg" className='w-10 h-10 m-auto' alt="" />
+                                    ) : (
+                                        <img src="/micro.svg" className='w-10 h-10 m-auto' alt="" />
+                                    )}
                                 </button>
 
                                 <button
                                     type="submit"
                                     disabled={!(content.trim() || file || recording || forwardMessages.length > 0)}
-                                    className="px-4 py-2 bg-main text-white rounded-md hover:bg-opacity-80 disabled:bg-gray-400"
+                                    className="px-4 py-2 bg-main text-white rounded-md hover:bg-opacity-80 disabled:bg-gray-100"
                                 >
-                                    Отправить
+                                        <img src="/send.svg" className='w-10 h-10 m-auto' alt="" />
                                 </button>
                             </form>
                         </div>

@@ -119,42 +119,44 @@ export default function Friends() {
 
             document.getElementById('closePopup')?.click();
 
-            alert('Чат успешно создан! Ссылка: ' + chatUrl);
+            setAlert({ content: 'Чат успешно создан! Ссылка: ' + chatUrl, type: '' });
 
         } catch (error) {
             console.error('Error creating chat:', error);
-            alert('Ошибка при создании чата: ' + error.message);
+            setAlert({ content: 'Ошибка при создании чата: ' + error.message, type: 'err' });
         } finally {
             setIsCreating(false);
         }
     };
 
-   
+
     const showChats = async () => {
         if (!user?.id) return;
-    
+
         try {
             const res = await get("/get-chats");
-    
+
+            console.log(res)
+
             const newChats = (res?.data || []).map((element) => {
                 const sortedMessages = [...(element.messages || [])].sort(
                     (a, b) => new Date(a.created_at) - new Date(b.created_at)
                 );
-    
+
                 const lastMessage = sortedMessages[sortedMessages.length - 1];
-    
+
                 let displayTitle = element.title || 'Личный чат';
-    
+
                 if (element.type === 'personal' && Array.isArray(element.members)) {
                     const otherMember = element.members.find(
                         (m) => Number(m.id) !== Number(user.id)
                     );
-    
+
                     if (otherMember?.name) {
                         displayTitle = otherMember.name;
                     }
                 }
-    
+
                 return {
                     id: element.id,
                     title: displayTitle,
@@ -174,7 +176,7 @@ export default function Friends() {
                         : '',
                 };
             });
-    
+
             setChats(newChats);
         } catch (error) {
             console.error('Error loading chats:', error);
@@ -236,7 +238,7 @@ export default function Friends() {
     return (
         <MainLayout>
             <div className="w-full flex items-center border-r-2 border-main">
-                <div className="overflow-auto max-lg:w-full lg:resize-x lg:min-w-1/4 lg:max-w-full">
+                <div className="overflow-auto max-lg:w-full lg:resize-x lg:min-w-2/6 lg:max-w-full">
                     <div className="flex justify-around items-center">
                         <h2 className="text-lg font-bold my-4">Чаты</h2>
                         <Popup
@@ -465,168 +467,172 @@ export default function Friends() {
                     </div>
 
                     {/* Список чатов */}
-<div className="h-96 overflow-y-auto w-full">
-    {filteredChats.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-            {searchQuery ? 'Чаты не найдены' : 'Нет доступных чатов'}
-        </div>
-    ) : (
-        filteredChats.map((chat) => {
-            const canOpen =
-                chat.type === 'public' ||
-                (chat.members || []).some((m) => Number(m.id) === Number(user?.id));
+                    <div className="h-96 overflow-y-auto w-full">
+                        {filteredChats.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                                {searchQuery ? 'Чаты не найдены' : 'Нет доступных чатов'}
+                            </div>
+                        ) : (
+                            filteredChats.map((chat) => {
+                                const canOpen =
+                                    chat.type === 'public' ||
+                                    (chat.members || []).some((m) => Number(m.id) === Number(user?.id));
 
-            if (!canOpen) return null;
+                                if (!canOpen) return null;
 
-            const chatHref = `/chats/${chat.type === 'personal' ? chat.id : chat.url}`;
+                                const chatHref = `/chats/${chat.type === 'personal' ? chat.id : chat.url}`;
 
-            return (
-                <div key={chat.id} className="w-full">
-                    <div className="max-lg:hidden lg:block">
-                        <a
-                            href={chatHref}
-                            className={`block px-3 py-4 rounded w-full flex items-center gap-3 cursor-pointer ${
-                                chat.id === chatId
-                                    ? 'bg-main/20 border border-main'
-                                    : 'hover:bg-fg/20'
-                            }`}
-                        >
-                            {/* Аватар */}
-                            {chat.source ? (
-                                <img
-                                    src={`${BASE_URL}${chat.source}`}
-                                    alt={chat.title}
-                                    className="w-12 h-12 rounded-full object-cover"
-                                />
-                            ) : (
-                                <div className="w-12 h-12 rounded-full flex justify-center items-center bg-main text-bg uppercase font-bold text-lg">
-                                    {chat.title ? chat.title[0] : ''}
-                                </div>
-                            )}
+                                return (
+                                    <div key={chat.id} className="w-full">
+                                        <div className="max-lg:hidden lg:block">
+                                            <a
+                                                href={chatHref}
+                                                className={`block px-3 py-4 rounded w-full flex items-center gap-3 cursor-pointer ${chat.id === chatId
+                                                        ? 'bg-main/20 border border-main'
+                                                        : 'hover:bg-fg/20'
+                                                    }`}
+                                            >
+                                                {/* Аватар */}
+                                                {chat.source ? (
+                                                    <img
+                                                        src={`${BASE_URL}${chat.source}`}
+                                                        alt={chat.title}
+                                                        className="w-12 h-12 rounded-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-12 h-12 rounded-full flex justify-center items-center bg-main text-bg uppercase font-bold text-lg">
+                                                        {chat.title ? chat.title[0] : ''}
+                                                    </div>
+                                                )}
 
-                            {/* Информация о чате */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-center">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-semibold truncate">
-                                            {chat.title}
-                                        </span>
+                                                {/* Информация о чате */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold truncate">
+                                                                {chat.title}
+                                                            </span>
 
-                                        {chat.type === 'private' && (
-                                            <span className="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full">
-                                                Приватный
-                                            </span>
-                                        )}
+                                                            {chat.type === 'private' && (
+                                                                <span className="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full">
+                                                                    Приватный
+                                                                </span>
+                                                            )}
 
-                                        {chat.type === 'public' && (
-                                            <span className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
-                                                Публичный
-                                            </span>
-                                        )}
+                                                            {chat.type === 'public' && (
+                                                                <span className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
+                                                                    Публичный
+                                                                </span>
+                                                            )}
+
+                                                            {chat.type === 'personal' && (
+                                                                <span className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
+                                                                    Личный
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+                                                            {chat.lastMessTime || chat.created_at}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Последнее сообщение */}
+                                                    <div className="text-sm text-gray-600 truncate mt-1">
+                                                        {chat.lastMess_img ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <span>📷</span>
+                                                                {chat.lastMess && <span>{chat.lastMess}</span>}
+                                                            </div>
+                                                        ) : (
+                                                            chat.lastMess || 'Нет сообщений'
+                                                        )}
+                                                    </div>
+
+                                                    {/* Количество участников и ссылка */}
+                                                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                                        {chat.type != 'personal' && (<span>👥 {chat.member_length}</span>
+                                                        )}
+                                                        {chat.type === 'private' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    copyChatLink(chat.url);
+                                                                }}
+                                                                className="text-main hover:underline"
+                                                            >
+                                                                🔗 Копировать ссылку
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </div>
+
+                                        {/* Мобильная версия */}
+                                        <div className="max-lg:block lg:hidden">
+                                            <Link
+                                                href={chatHref}
+                                                className={`flex px-3 py-4 rounded w-full items-center gap-3 ${chat.id === chatId
+                                                        ? 'bg-blue-100 border border-blue-300'
+                                                        : 'hover:bg-fg/20'
+                                                    }`}
+                                            >
+                                                {chat.source ? (
+                                                    <img
+                                                        src={`${BASE_URL}${chat.source}`}
+                                                        alt={chat.title}
+                                                        className="w-12 h-12 rounded-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-12 h-12 rounded-full flex justify-center items-center bg-main text-bg uppercase font-bold text-lg">
+                                                        {chat.title ? chat.title[0] : ''}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="flex justify-between items-center">
+                                                        <span className="font-semibold truncate">{chat.title}</span>
+                                                        <span className="text-xs text-gray-500 ml-2">
+                                                            {chat.lastMessTime || chat.created_at}
+                                                        </span>
+                                                    </p>
+
+                                                    <div className="text-sm text-gray-600 truncate">
+                                                        {chat.lastMess_img ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <span>📷</span>
+                                                                {chat.lastMess && <span>{chat.lastMess}</span>}
+                                                            </div>
+                                                        ) : (
+                                                            chat.lastMess || 'Нет сообщений'
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </Link>
+                                        </div>
                                     </div>
-
-                                    <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
-                                        {chat.lastMessTime || chat.created_at}
-                                    </span>
-                                </div>
-
-                                {/* Последнее сообщение */}
-                                <div className="text-sm text-gray-600 truncate mt-1">
-                                    {chat.lastMess_img ? (
-                                        <div className="flex items-center gap-1">
-                                            <span>📷</span>
-                                            {chat.lastMess && <span>{chat.lastMess}</span>}
-                                        </div>
-                                    ) : (
-                                        chat.lastMess || 'Нет сообщений'
-                                    )}
-                                </div>
-
-                                {/* Количество участников и ссылка */}
-                                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                                    <span>👥 {chat.member_length}</span>
-
-                                    {chat.type === 'private' && (
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                copyChatLink(chat.url);
-                                            }}
-                                            className="text-main hover:underline"
-                                        >
-                                            🔗 Копировать ссылку
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-
-                    {/* Мобильная версия */}
-                    <div className="max-lg:block lg:hidden">
-                        <Link
-                            href={chatHref}
-                            className={`flex px-3 py-4 rounded w-full items-center gap-3 ${
-                                chat.id === chatId
-                                    ? 'bg-blue-100 border border-blue-300'
-                                    : 'hover:bg-fg/20'
-                            }`}
-                        >
-                            {chat.source ? (
-                                <img
-                                    src={`${BASE_URL}${chat.source}`}
-                                    alt={chat.title}
-                                    className="w-12 h-12 rounded-full object-cover"
-                                />
-                            ) : (
-                                <div className="w-12 h-12 rounded-full flex justify-center items-center bg-main text-bg uppercase font-bold text-lg">
-                                    {chat.title ? chat.title[0] : ''}
-                                </div>
-                            )}
-
-                            <div className="flex-1 min-w-0">
-                                <p className="flex justify-between items-center">
-                                    <span className="font-semibold truncate">{chat.title}</span>
-                                    <span className="text-xs text-gray-500 ml-2">
-                                        {chat.lastMessTime || chat.created_at}
-                                    </span>
-                                </p>
-
-                                <div className="text-sm text-gray-600 truncate">
-                                    {chat.lastMess_img ? (
-                                        <div className="flex items-center gap-1">
-                                            <span>📷</span>
-                                            {chat.lastMess && <span>{chat.lastMess}</span>}
-                                        </div>
-                                    ) : (
-                                        chat.lastMess || 'Нет сообщений'
-                                    )}
-                                </div>
-                            </div>
-                        </Link>
+                                );
+                            })
+                        )}
                     </div>
                 </div>
-            );
-        })
-    )}
-</div>
-</div>
 
-{/* Окно чата */}
-<div className="w-full max-lg:hidden">
-    {isSelectedChat ? (
-        <ChatWindow key={chatId} chat_id={chatId} />
-    ) : (
-        <div className="flex items-center justify-center h-full">
-            <span className="p-5 rounded-md bg-main/20 text-center">
-                Выберите чат для начала общения
-            </span>
-        </div>
-    )}
-</div>
-</div>
-</MainLayout>
-)
+                {/* Окно чата */}
+                <div className="w-full max-lg:hidden">
+                    {isSelectedChat ? (
+                        <ChatWindow key={chatId} chat_url={chatId} />
+                    ) : (
+                        <div className="flex items-center justify-center h-full">
+                            <span className="p-5 rounded-md bg-main/20 text-center">
+                                Выберите чат для начала общения
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </MainLayout>
+    )
 }

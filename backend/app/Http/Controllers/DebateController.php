@@ -26,6 +26,12 @@ class DebateController extends Controller
             'messages' => fn($query) => $query
                 ->with('source')
                 ->orderBy('created_at'),
+
+                'members',
+                'messages.message',
+                'messages.user',
+                'messages.source',
+                'messages.readers:id,name',
         ])
             ->where(function ($query) use ($userId) {
                 $query->where('type', 'public')

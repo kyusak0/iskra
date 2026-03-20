@@ -24,7 +24,7 @@ export default function AdminPanel() {
 
         setUsers(prevData =>
             prevData.map(u =>
-                u?.id === user.id
+                u?.id === user.id && u?.role === 'admin'
                     ? { ...u, is_blocked: blockData.is_blocked }
                     : u
             )

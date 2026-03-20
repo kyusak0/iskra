@@ -20,11 +20,11 @@ export default function ContextMenu({
         });
     };
 
-    useEffect(()=>{
-        if(closing){
+    useEffect(() => {
+        if (closing) {
             setContext(prev => ({ ...prev, visible: !closing }));
         }
-        
+
     }, [closing])
 
     const closeContextMenu = () => {
@@ -62,7 +62,9 @@ export default function ContextMenu({
                             top: `${context.y}px`,
                         }}
                     >
-                        <div className="p-[10px]">
+                        <div className="p-[10px]"
+                            
+                            >
                             {children}
                         </div>
                     </div>
